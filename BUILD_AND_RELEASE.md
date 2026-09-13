@@ -1,11 +1,11 @@
-Current as of: 2026-09-12
-Last substantive update: 2026-09-12
+Current as of: 2026-09-13
+Last substantive update: 2026-09-13
 
 # Build and Release Notes
 
 ## Current Public-Release Posture
 
-`v0.4.0-alpha.1` is the proposed first Len-branded public prerelease. The exact candidate is `release\Len-Portable-0.4.0-alpha.1.zip` (43,804,004 bytes; 1,856 file entries; SHA-256 `38B17A47C9EC78F2568FAAE9DDAFC4B721C846D3BFD849766C92FBD5A6FBA277`) built from commit `c98c258c60f672f99a769a58a260de92484a4515`. It is not yet approved for public redistribution because Daniel's hands-on exact-hash GUI walkthrough and separate release authorization remain pending. The ignored ZIP must not be committed to Git.
+`v0.4.0-alpha.1` is the first Len-branded public prerelease. The published artifact is `Len-Portable-0.4.0-alpha.1.zip` (43,804,004 bytes; 1,856 file entries; SHA-256 `38B17A47C9EC78F2568FAAE9DDAFC4B721C846D3BFD849766C92FBD5A6FBA277`) built from commit `c98c258c60f672f99a769a58a260de92484a4515`. The later release-specific documentation commit referenced by the release and tag is `b9b4aaaa3c8339183c32ca7dda7c18ea83150ec8`. The public prerelease and asset are available from [the official GitHub release](https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.4.0-alpha.1). The local release ZIP remains ignored and must not be committed to Git.
 
 The `v0.3.0-alpha.1` tag and its Mental Health Tracker-era assets remain frozen historical records. Do not rebuild, overwrite, relabel, or use their validation evidence for the Len candidate.
 
@@ -182,9 +182,9 @@ Update these together for each release:
 
 ## Current Validation Status
 
-### Len public prerelease candidate - 0.4.0-alpha.1
+### Len public prerelease - 0.4.0-alpha.1
 
-On September 12, 2026, the clean local `main` checkout and its cached `origin/main` both resolved to `c98c258c60f672f99a769a58a260de92484a4515`. This was not a live authenticated GitHub audit. The controlled Python 3.12.10 environment passed the release-license verifier with 34 notice files and 11 pinned package versions, and the full source suite passed 68 tests.
+On September 12, 2026, the exact artifact was built from a clean local `main` checkout at `c98c258c60f672f99a769a58a260de92484a4515`; the cached `origin/main` matched at build time, but that observation was not a live authenticated GitHub audit. The controlled Python 3.12.10 environment passed the release-license verifier with 34 notice files and 11 pinned package versions, and the full source suite passed 68 tests. Release-specific documentation was then committed as `b9b4aaaa3c8339183c32ca7dda7c18ea83150ec8`, and the `v0.4.0-alpha.1` tag and GitHub prerelease reference that later commit. The artifact was not rebuilt or changed between validation and publication.
 
 The exact ZIP has a flat portable layout and includes `PHQ9Tracker.exe`, `Launch Portable Len.bat`, the canonical GPLv3 `LICENSE`, 35 third-party-notice file entries, and the required Tcl/Tk runtime files. Its pre-launch inventory contains no database, report, export, log, or other generated user-data file. Both direct execution and the portable launcher reached a responsive window titled **Len**. Direct execution wrote to an isolated LocalAppData path; the portable launcher wrote beside the executable. A 14-day fictional PHQ-9/GAD-7 dataset with 14 notes and two distinct same-day treatment-event types persisted across a portable restart. Deleting the isolated fictional database and relaunching produced zero assessment and treatment-event records.
 
@@ -192,7 +192,7 @@ The packaged executable generated a five-page Len clinician PDF and an eight-she
 
 Microsoft Defender command-line custom scans of the exact ZIP and extracted executable returned no threats. `PHQ9Tracker.exe` is not Authenticode-signed. Defender results are point-in-time evidence, not a guarantee of safety or future reputation behavior.
 
-Remaining gates: Daniel must perform and report the hands-on GUI checklist against the exact SHA-256 above, including the questionnaire selection/completion flow, safety-message placement, resizing and keyboard navigation, History/Review behavior, and visible PDF/workbook actions. Separate-machine validation has not been performed and must not be claimed. Installer compilation and validation remain outside this portable-only candidate. No tag, commit of release-specific changes, push, asset upload, GitHub Release, or public announcement is authorized.
+The public asset was independently downloaded again on September 13, 2026 and matched the recorded 43,804,004-byte size and SHA-256 exactly; the detailed timestamp, source URL, and result are in the [release record](docs/releases/v0.4.0-alpha.1.md). Publication does not add validation that was not performed: a separate owner-performed hands-on exact-hash GUI walkthrough is not recorded for this artifact, separate-machine validation was not performed, and installer compilation and validation remain outside this portable-only release. Public announcement or broader promotion remains a separate owner decision.
 
 Iteration 007.2 passed 40 automated tests using isolated synthetic databases. A normalized workbook passed worksheet, relationship, no-merge, full-text, ISO-date, and same-day-event checks. A four-page synthetic clinician report was structurally checked, rendered to PNG, and visually inspected with complete long-form notes.
 

@@ -2,7 +2,12 @@
 
 ## Supported Version
 
-`0.3.0-alpha.1` is pre-release software. The current notice-complete `redistribution.2` candidate passed Daniel's required hands-on development-workstation GUI walkthrough, during which he observed no Windows Defender or SmartScreen prompt. It has not received separate-machine validation, is not approved for public distribution, and has not been released as a public binary. The software is not code-signed, has not received a formal third-party security audit, and should not be treated as a clinically validated or regulated product.
+| Version | Supported | Status |
+| --- | --- | --- |
+| `0.4.0-alpha.1` | Yes | Current public prerelease |
+| `0.3.0-alpha.1` | No | Frozen historical release |
+
+The public `0.4.0-alpha.1` portable artifact was built from commit `c98c258c60f672f99a769a58a260de92484a4515`; the later release/tag commit is `b9b4aaaa3c8339183c32ca7dda7c18ea83150ec8`. The artifact is not code-signed, has not received a formal third-party security audit or separate-machine validation, and should not be treated as a clinically validated or regulated product. A separate owner-performed hands-on exact-hash GUI walkthrough is not recorded for this artifact and is not claimed.
 
 ## Reporting a Software Security Issue
 
@@ -22,7 +27,7 @@ The project address is not continuously monitored and is not an emergency, crisi
 
 ## Windows Security Warnings
 
-Allow Windows Security and other antivirus products to perform normal scanning. Do not disable protection, suppress an actual threat detection, or override a warning you do not understand. Because the current candidate is unsigned and unfamiliar, Windows may display reputation or publisher warnings. Report the exact warning text and release source so it can be distinguished from an actual detection.
+Allow Windows Security and other antivirus products to perform normal scanning. Do not disable protection, suppress an actual threat detection, or override a warning you do not understand. Because the current public prerelease is unsigned and unfamiliar, Windows may display reputation or publisher warnings. Report the exact warning text and release source so it can be distinguished from an actual detection.
 
 ## Data Protection Limitations
 

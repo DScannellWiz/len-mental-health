@@ -1,5 +1,5 @@
-Current as of: 2026-09-12
-Last substantive update: 2026-09-12
+Current as of: 2026-09-13
+Last substantive update: 2026-09-13
 
 # Len
 
@@ -11,9 +11,9 @@ The project began as a personal response to the **Tyranny of Temporal Distance**
 
 ## Maturity and Availability
 
-The planned first Len-branded public prerelease is `v0.4.0-alpha.1` for Windows 11 64-bit. It is alpha/pre-release software, not a finished or clinically validated product. A candidate built from commit `c98c258` has passed 68 automated tests, exact-archive and licensing checks, direct and portable startup/storage checks, fictional packaged PDF/workbook generation, rendered-output inspection, and Windows Defender scans. It has not yet completed Daniel's hands-on exact-hash GUI walkthrough or separate-machine validation. This evidence does not guarantee that the software will work on every computer or be useful for every person.
+The first Len-branded public prerelease, [`v0.4.0-alpha.1`](https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.4.0-alpha.1), is available for Windows 11 64-bit. It is alpha/pre-release software, not a finished or clinically validated product. The published artifact was built from commit `c98c258`; the later documentation commit referenced by the release and tag is `b9b4aaaa`. Recorded validation includes 68 automated tests, exact-archive and licensing checks, direct and portable startup/storage checks, fictional packaged PDF/workbook generation, rendered-output inspection, and Windows Defender scans. A separate owner-performed hands-on exact-hash GUI walkthrough is not recorded for this artifact, and separate-machine validation was not performed. This evidence does not guarantee that the software will work on every computer or be useful for every person.
 
-No public binary download is available until Daniel approves the exact candidate and a GitHub prerelease is published. The proposed file is `Len-Portable-0.4.0-alpha.1.zip`; its approval hash and download link must come from the official `v0.4.0-alpha.1` GitHub prerelease. The existing `v0.3.0-alpha.1` tag and `PHQ9Tracker-Portable-0.3.0-alpha.1*` files remain frozen Mental Health Tracker-era records and are not rebuilt, overwritten, or relabeled. Do not download executables or ZIP files from reposts or unofficial mirrors.
+The official public binary is [`Len-Portable-0.4.0-alpha.1.zip`](https://github.com/DScannellWiz/len-mental-health/releases/download/v0.4.0-alpha.1/Len-Portable-0.4.0-alpha.1.zip), with SHA-256 `38B17A47C9EC78F2568FAAE9DDAFC4B721C846D3BFD849766C92FBD5A6FBA277`. The existing `v0.3.0-alpha.1` tag and `PHQ9Tracker-Portable-0.3.0-alpha.1*` files remain frozen Mental Health Tracker-era records and are not rebuilt, overwritten, or relabeled. Do not download executables or ZIP files from reposts or unofficial mirrors.
 
 ## Current Features
 
@@ -41,7 +41,7 @@ Run those commands from the project root. The launcher adds the repository's `sr
 
 ## Using a Portable Build
 
-When an official portable ZIP becomes available:
+To use the official portable ZIP:
 
 1. Allow Windows Security or your antivirus product to scan the downloaded ZIP.
 2. Extract the entire ZIP into a normal user-writable folder. Do not run the app from inside the ZIP.
@@ -91,7 +91,7 @@ See [Privacy and Data Handling](docs/PRIVACY_AND_DATA_HANDLING.md) and [Security
 
 ## Windows Security Notice
 
-The current candidate is not code-signed. Windows Defender, Microsoft SmartScreen, or another security product may scan it or warn that an unfamiliar pre-release application has limited reputation. Allow normal scanning. Do not disable antivirus protection, suppress an actual threat detection, or override a warning you do not understand.
+The current public portable build is not code-signed. Windows Defender, Microsoft SmartScreen, or another security product may scan it or warn that an unfamiliar pre-release application has limited reputation. Allow normal scanning. Do not disable antivirus protection, suppress an actual threat detection, or override a warning you do not understand.
 
 If a warning appears, stop and report the exact product name, warning text, detected file, release filename, and release source without including private health data. Code signing would improve publisher identity and reputation signals, but it is not currently available and is not a substitute for clean build and release practices.
 
@@ -108,7 +108,7 @@ If you may be in immediate danger or need urgent help, contact local emergency s
 - [Product Principles](docs/product-principles.md) defines the stable philosophical core and adaptable implementation layers.
 - [Architecture Decision Records](docs/decisions/) document significant product and architectural decisions.
 - [Build and Release Notes](BUILD_AND_RELEASE.md) covers developer packaging, validation, and release controls.
-- [v0.4.0-alpha.1 Candidate Record and Draft Release Notes](docs/releases/v0.4.0-alpha.1.md) records the exact candidate evidence, remaining gates, and proposed public notes.
+- [v0.4.0-alpha.1 Release Record and GitHub Release Notes](docs/releases/v0.4.0-alpha.1.md) records the exact artifact evidence, publication state, validation boundaries, and post-publication download verification.
 - [Historical Closed Alpha Documentation](docs/alpha/README.md) preserves an abandoned private testing plan as provenance. It is not an active enrollment, support, or release workflow.
 
 ## License

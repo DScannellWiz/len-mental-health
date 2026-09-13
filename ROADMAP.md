@@ -1,5 +1,5 @@
-Current as of: 2026-09-12
-Last substantive update: 2026-09-12
+Current as of: 2026-09-13
+Last substantive update: 2026-09-13
 
 # Roadmap
 
@@ -20,6 +20,7 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Treatment event tracking.
 - Daily notes.
 - GitHub-ready project structure.
+- Privacy-conscious public support, contribution, security-reporting, issue, and pull-request guidance.
 - Automated tests.
 - Installer and portable build scripts.
 

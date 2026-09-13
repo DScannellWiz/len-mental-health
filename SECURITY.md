@@ -11,7 +11,9 @@ The public `0.4.0-alpha.1` portable artifact was built from commit `c98c258c60f6
 
 ## Reporting a Software Security Issue
 
-Report a suspected software security issue privately to `projectmentalhealthtracker@gmail.com` before opening a public issue when disclosure could put users or their data at risk.
+Report a suspected software security issue through [GitHub private vulnerability reporting](https://github.com/DScannellWiz/len-mental-health/security/advisories/new). Do not open a public issue when disclosure could put users or their data at risk.
+
+If GitHub private vulnerability reporting is unavailable, use `projectmentalhealthtracker@gmail.com` as a fallback and include only the minimum non-health information needed to understand the suspected vulnerability.
 
 Include only:
 
@@ -23,7 +25,7 @@ Include only:
 
 Do not attach or send a tracker database, generated PDF, spreadsheet, export, log containing entered data, assessment response, score, journal entry, treatment or clinician information, credential, or screenshot containing health or other private information. Redact usernames and identifying file paths. If a minimal proof of concept is necessary, create it with new fictional data that does not describe a real person.
 
-The project address is not continuously monitored and is not an emergency, crisis, clinical, or medical-support channel.
+Neither private vulnerability reporting nor the project address is continuously monitored or an emergency, crisis, clinical, or medical-support channel.
 
 ## Windows Security Warnings
 

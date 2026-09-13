@@ -1,0 +1,102 @@
+name: Bug report
+description: Report a reproducible Len software defect using fictional data only
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a public software tracker. Do not enter assessment answers, scores, journal or treatment information, generated Len files, PHI, PII, credentials, or identifying file paths. Reproduce the problem with newly created fictional data. Len is not a medical, crisis, or emergency service.
+
+        Suspected vulnerabilities must be reported through [GitHub private vulnerability reporting](https://github.com/DScannellWiz/len-mental-health/security/advisories/new), not here.
+
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Public-report boundaries
+      options:
+        - label: I have not included personal, health, clinical, credential, or other private information.
+          required: true
+        - label: This is a software defect, not a suspected security vulnerability or a request for medical, crisis, or emergency help.
+          required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: Len version
+      options:
+        - 0.4.0-alpha.1
+        - Current source on main
+        - Older version
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: launch-mode
+    attributes:
+      label: Launch mode
+      options:
+        - Portable batch launcher
+        - Packaged executable started directly
+        - Source launcher
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      description: For example, Windows 11 24H2, 64-bit. Do not include a device name or username.
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem summary
+      description: Describe the software defect without including real health or personal context.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps using fictional data
+      placeholder: |
+        1. Start Len using...
+        2. Create a fictional entry...
+        3. Select...
+        4. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-text
+    attributes:
+      label: Exact non-health error or warning text
+      description: Paste text only after removing usernames, identifying paths, entered data, and other private information. Do not upload logs.
+
+  - type: checkboxes
+    id: fictional-data
+    attributes:
+      label: Fictional-data confirmation
+      options:
+        - label: I reproduced this report with project-created fictional data, or the defect occurs before any data is entered.
+          required: true

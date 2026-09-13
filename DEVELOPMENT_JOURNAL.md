@@ -1,5 +1,5 @@
-Current as of: 2026-09-12
-Last substantive update: 2026-09-10
+Current as of: 2026-09-13
+Last substantive update: 2026-09-13
 
 # Development Journal
 
@@ -394,3 +394,13 @@ The repair is confined to packaging. The PyInstaller runtime hook now supplies e
 The pinned Python 3.12.10/Tcl/Tk 8.6.15/PyInstaller 6.22.1 rebuild produced `PHQ9Tracker-Portable-0.3.0-alpha.1-redistribution.2.zip` (43,745,615 bytes; 1,910 entries; 96,483,945 uncompressed bytes; SHA-256 `5A43D176103FCEDBA1FBD36F01C78FDD88237FB27F369C859A9B37C8F497D1DA`; executable SHA-256 `D914BDB42E89093959467717A427F6238AD5B99629A635E0E1BE31EDC44E2E59`). The exact archive passed integrity, privacy, GPL/notice, normal/short extraction, direct/batch startup-liveness, portable blank-database and fictional persistence, repeated collision-safe PDF/workbook generation, rendered output inspection, file-level reset/relaunch, compilation, and all 61 tests.
 
 The startup crash was resolved, and Daniel then completed the required hands-on GUI walkthrough against the exact quarantined `.2` ZIP on his development workstation. He reported that fresh extraction and batch launch, fictional PHQ-9/GAD-7 entry with a note and treatment event, close/reopen persistence, Review/chart interaction, exercised keyboard/date behavior, unsaved-change handling, two collision-safe GUI PDF generations, two collision-safe GUI Analysis Workbook generations, Open Reports Folder, in-app delete/reset, and close/reopen after reset all worked. No Windows Defender or SmartScreen prompt appeared. This records only Daniel's reported results; it does not claim separate-machine validation of the `.2` hash or transfer the old artifact's evidence. The `.2` folder and ZIP remain quarantined under ignored `work/pending_iteration_009_candidate/`. No push, tag, release, upload, visibility change, Form change, or distribution occurred.
+
+## September 13, 2026: Iteration 011 Community and Security Intake
+
+After the first Len-branded public prerelease was published and its documentation reconciled, the next repository-readiness gap was the absence of structured, privacy-conscious community intake. GitHub Issues accepted only blank submissions, private vulnerability reporting was disabled, and the repository had no contributing guide, support guide, code of conduct, issue forms, or pull-request template.
+
+Iteration 011 separates ordinary support, suspected vulnerabilities, and conduct concerns. The new guides preserve Len's software-only, non-clinical boundary and require project-created fictional data. Public bug and feature forms warn against PHI, PII, assessment content, generated Len files, credentials, and identifying paths before accepting details. Blank issues are disabled by configuration, and the pull-request checklist carries the same privacy, compatibility, testing, documentation, licensing, and AI-review expectations into proposed code changes.
+
+GitHub private vulnerability reporting is the preferred security route, with the public project email retained only as a fallback. After Daniel's explicit action-time confirmation, the setting was enabled in the live public repository and GitHub confirmed that the repository settings were saved. Discussions remain disabled until the project has an approved moderation model for likely health or clinical disclosures.
+
+This work changes repository participation and documentation only. It adds no application feature, dependency, schema change, user-data migration, package, release artifact, or clinical claim. Validation covers the structured YAML, local Markdown links, required privacy/safety language, forbidden tracked artifacts, whitespace, compilation, and the full automated test suite.

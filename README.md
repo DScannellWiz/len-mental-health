@@ -85,9 +85,9 @@ Never submit or email:
 
 For software support, provide the application version, Windows version, steps to reproduce the behavior, what you expected, what happened, and the exact non-health error or security-warning text. Screenshots are acceptable only after confirming that they contain no health information or other private data. Reproduce problems with newly created fictional data whenever possible.
 
-The intentionally public project support address is `projectmentalhealthtracker@gmail.com`. It is for software and repository administration only. Do not send personal health information or generated health-data artifacts to that address. Support is best effort and is not continuously monitored.
+Use the [Support Guide](SUPPORT.md) for ordinary software-reporting instructions. Suspected vulnerabilities must be submitted through [GitHub private vulnerability reporting](https://github.com/DScannellWiz/len-mental-health/security/advisories/new), not a public issue. The intentionally public project address, `projectmentalhealthtracker@gmail.com`, remains a best-effort fallback for software and repository administration and is not continuously monitored. Do not send personal health information or generated health-data artifacts to any project channel.
 
-See [Privacy and Data Handling](docs/PRIVACY_AND_DATA_HANDLING.md) and [Security Policy](SECURITY.md) for the full boundaries.
+See [Privacy and Data Handling](docs/PRIVACY_AND_DATA_HANDLING.md), the [Security Policy](SECURITY.md), and the [Support Guide](SUPPORT.md) for the full boundaries.
 
 ## Windows Security Notice
 
@@ -108,6 +108,9 @@ If you may be in immediate danger or need urgent help, contact local emergency s
 - [Product Principles](docs/product-principles.md) defines the stable philosophical core and adaptable implementation layers.
 - [Architecture Decision Records](docs/decisions/) document significant product and architectural decisions.
 - [Build and Release Notes](BUILD_AND_RELEASE.md) covers developer packaging, validation, and release controls.
+- [Contributing Guide](CONTRIBUTING.md) defines the development workflow, validation expectations, and fictional-data-only rule.
+- [Support Guide](SUPPORT.md) routes ordinary software questions and protects the project's medical and privacy boundaries.
+- [Community Code of Conduct](CODE_OF_CONDUCT.md) defines participation and enforcement expectations.
 - [v0.4.0-alpha.1 Release Record and GitHub Release Notes](docs/releases/v0.4.0-alpha.1.md) records the exact artifact evidence, publication state, validation boundaries, and post-publication download verification.
 - [Historical Closed Alpha Documentation](docs/alpha/README.md) preserves an abandoned private testing plan as provenance. It is not an active enrollment, support, or release workflow.
 

@@ -1,0 +1,65 @@
+name: Feature request
+description: Propose a focused improvement without sharing personal health information
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a public software tracker. Describe the general software need, not a real person's symptoms, treatment, assessment responses, or care. Len is not a medical, crisis, or emergency service.
+
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Public-request boundaries
+      options:
+        - label: I have not included personal, health, clinical, credential, or other private information.
+          required: true
+        - label: This request concerns software behavior and does not ask for medical interpretation, diagnosis, treatment, crisis support, or emergency help.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: General problem
+      description: What general software limitation or workflow problem should Len address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Describe the user-visible behavior you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe simpler workarounds or approaches you considered.
+
+  - type: dropdown
+    id: data-effect
+    attributes:
+      label: Expected data effect
+      description: Choose the closest expected effect; maintainers will verify it during design.
+      options:
+        - No change to stored or generated data
+        - Changes on-device storage
+        - Changes PDF or workbook output
+        - Imports or exports data
+        - Adds network or sharing behavior
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy, security, and compatibility considerations
+      description: Identify general risks or backward-compatibility concerns without including a real person's information.
+    validations:
+      required: true

@@ -21,7 +21,9 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Daily notes.
 - GitHub-ready project structure.
 - Privacy-conscious public support, contribution, security-reporting, issue, and pull-request guidance.
-- Automated tests.
+- Focused repository discovery metadata and area, status, and priority labels.
+- Dependabot vulnerability alerts and GitHub secret-scanning alerts.
+- Automated tests with a Windows/Python 3.12 continuous-integration workflow for pull requests and `main`.
 - Installer and portable build scripts.
 
 ## Iteration 010: Extensible Questionnaire Framework - Implementation Complete

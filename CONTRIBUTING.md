@@ -60,6 +60,8 @@ git diff --check
 
 Also run focused validation appropriate to the change. GUI, packaging, PDF, and workbook claims require the corresponding current validation; a passing source test suite must not be presented as proof that a packaged Windows artifact works.
 
+GitHub Actions runs the same automated test and compilation commands on Windows with Python 3.12 for pull requests targeting `main` and pushes to `main`. The hosted check is an additional signal, not a substitute for any required GUI, packaging, privacy, licensing, or exact-artifact validation.
+
 ## Pull Requests
 
 A pull request should:

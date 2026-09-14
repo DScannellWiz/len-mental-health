@@ -20,6 +20,7 @@ Current as of: 2026-09-13
 - Cancel a superseded run for the same workflow and ref, and cap each job at 20 minutes.
 - Run the existing full unit-test and compilation commands. Do not build a Windows package in ordinary CI because package creation has additional runtime, licensing, privacy, and exact-artifact gates.
 - Do not add a README status badge or require the check until the workflow has completed successfully on live GitHub.
+- Derive portable-path test expectations from the resolved mocked executable location. Windows can expose the same runner temporary directory through a long username or an equivalent DOS 8.3 alias; the contract under test is that portable data and reports stay beside the executable, not that two equivalent path spellings remain textually identical.
 
 ## Live Repository Changes
 
@@ -53,6 +54,8 @@ Current as of: 2026-09-13
 - The changed-file inventory and tracked/unignored files contained no private or generated artifact.
 - `git diff --check` passed; Git emitted only informational LF-to-CRLF working-copy warnings.
 - The live repository displayed the revised description, all ten focused topics, 19 total active labels, enabled Dependabot alerts, and enabled secret-scanning alerts.
+- Dependabot reported 23 alerts in `packaging/requirements-release.txt`: 13 for the pinned Pillow 12.2.0 and 10 for the pinned pypdf 6.13.3. Pillow is listed in the distributed-runtime manifest; pypdf is used by tests and the release preflight but is not listed in that manifest. No alert was dismissed, no automatic update was created, and the frozen public artifact was not modified.
+- The first live run successfully parsed and executed the workflow but reported two test failures caused by `runneradmin` versus `RUNNER~1` representations of the same Windows temporary directory. The two affected assertions were corrected to calculate their expected paths from `executable.resolve().parent`, matching the application's existing path-resolution behavior.
 - After publication, verify the first live GitHub Actions run before requiring the check or adding a badge.
 
 ## Privacy and Security Impact
@@ -72,3 +75,4 @@ No application, database, user-data, packaging, or local development migration i
 - Create a `main` ruleset that blocks deletion and force pushes and requires the successful CI check, with an explicitly documented owner-bypass decision.
 - Protect published `v*` tags from deletion or movement.
 - Review any dependency or secret-scanning alerts, then decide whether automatic update pull requests and secret push protection are useful after CI is proven.
+- Refresh Pillow, pypdf, and any affected release dependencies in a separate future-release iteration with updated notices, manifest evidence, packaging, licensing checks, and exact-artifact validation. Do not mutate the published `v0.4.0-alpha.1` ZIP.

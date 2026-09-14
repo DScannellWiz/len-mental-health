@@ -115,7 +115,7 @@ class PortableDatabaseRoutingTests(unittest.TestCase):
                 os.environ["PHQ9_TRACKER_PORTABLE"] = "1"
                 with patch.object(sys, "frozen", True, create=True), patch.object(sys, "executable", str(executable)):
                     portable_db = app.default_db_path()
-                self.assertEqual(portable_db, portable_dir / "phq9_tracker.sqlite")
+                self.assertEqual(portable_db, executable.resolve().parent / "phq9_tracker.sqlite")
 
                 app.DB_PATH = portable_db
                 app.init_db()

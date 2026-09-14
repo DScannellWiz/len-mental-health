@@ -122,7 +122,7 @@ class Iteration0082OutputDiscoveryTests(unittest.TestCase):
             with patch.object(sys, "frozen", True, create=True), patch.object(sys, "executable", str(executable)), patch.dict(
                 os.environ, {"PHQ9_TRACKER_PORTABLE": "1"}
             ):
-                self.assertEqual(app.generated_output_dir(), Path(tmp) / "reports")
+                self.assertEqual(app.generated_output_dir(), executable.resolve().parent / "reports")
 
     def test_open_choice_is_optional_and_open_failure_preserves_saved_path(self):
         saved_path = Path("C:/fictional/reports/report.pdf")

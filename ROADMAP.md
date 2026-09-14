@@ -1,5 +1,5 @@
-Current as of: 2026-09-13
-Last substantive update: 2026-09-13
+Current as of: 2026-09-14
+Last substantive update: 2026-09-14
 
 # Roadmap
 
@@ -25,6 +25,15 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Dependabot vulnerability alerts and GitHub secret-scanning alerts.
 - Automated tests with a Windows/Python 3.12 continuous-integration workflow for pull requests and `main`.
 - Installer and portable build scripts.
+
+## Iteration 013: Dependency Security Remediation - Engineering Complete
+
+- Updated the controlled release/test dependency pins from Pillow 12.2.0 to 12.3.0 and pypdf 6.13.3 to 6.16.1, addressing all 23 inventoried alerts without changing application behavior or accepted inputs.
+- Refreshed the exact distributed Pillow license evidence and notice manifest.
+- Passed 68 automated tests, compilation, license verification, exact-package checks, Defender checks, and separate-environment direct/portable validation of the frozen `v0.4.1-alpha.1` candidate.
+- Preserved the local-first data model and existing database compatibility; no migration is required.
+- Prepared protected release documentation while leaving commit, push, tag, GitHub prerelease, upload, and public promotion subject to separate owner approval.
+- Kept future questionnaire-framework and Windows code-signing planning outside this iteration.
 
 ## Iteration 010: Extensible Questionnaire Framework - Implementation Complete
 

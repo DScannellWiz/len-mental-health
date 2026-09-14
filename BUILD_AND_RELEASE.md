@@ -1,5 +1,5 @@
-Current as of: 2026-09-13
-Last substantive update: 2026-09-13
+Current as of: 2026-09-14
+Last substantive update: 2026-09-14
 
 # Build and Release Notes
 
@@ -8,6 +8,8 @@ Last substantive update: 2026-09-13
 `v0.4.0-alpha.1` is the first Len-branded public prerelease. The published artifact is `Len-Portable-0.4.0-alpha.1.zip` (43,804,004 bytes; 1,856 file entries; SHA-256 `38B17A47C9EC78F2568FAAE9DDAFC4B721C846D3BFD849766C92FBD5A6FBA277`) built from commit `c98c258c60f672f99a769a58a260de92484a4515`. The later release-specific documentation commit referenced by the release and tag is `b9b4aaaa3c8339183c32ca7dda7c18ea83150ec8`. The public prerelease and asset are available from [the official GitHub release](https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.4.0-alpha.1). The local release ZIP remains ignored and must not be committed to Git.
 
 The `v0.3.0-alpha.1` tag and its Mental Health Tracker-era assets remain frozen historical records. Do not rebuild, overwrite, relabel, or use their validation evidence for the Len candidate.
+
+An unpublished `v0.4.1-alpha.1` security-maintenance candidate is prepared and validated. Its exact identity is `Len-Portable-0.4.1-alpha.1.zip`, 43,806,172 bytes, SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`. It remains uncommitted, untagged, and unpublished; see the [candidate record and draft release notes](docs/releases/v0.4.1-alpha.1.md). This preparation does not replace or change the current public `v0.4.0-alpha.1` release.
 
 Do not create a tag, GitHub Release, upload, or public announcement merely because the source and candidate tests pass. Repository visibility, source publication, binary distribution, and social-media promotion are separate owner decisions.
 
@@ -181,6 +183,16 @@ Update these together for each release:
 - Confirm portable builds create no system shortcuts.
 
 ## Current Validation Status
+
+### Unpublished security-maintenance candidate - 0.4.1-alpha.1
+
+Iteration 013 updates Pillow to 12.3.0 and pypdf to 6.16.1, refreshes the exact Pillow license evidence, and leaves application source, data schema, storage, accepted inputs, and features unchanged. The controlled environment passed 68 automated tests, compilation, release-license verification, and exact-candidate static checks. The candidate was built from committed baseline `0532cfc736a373f0b3542da98747e8d077b493f1` plus the recorded uncommitted Iteration 013 changes.
+
+The primary workstation's enforced App Control policy rejected the unsigned executable before launch. No bypass or policy change was attempted. The exact same 43,806,172-byte candidate subsequently passed normal non-administrator validation on an authorized separate Windows environment: direct launch used isolated LocalAppData, two portable launches preserved the fictional PHQ-9/GAD-7 fixture, and the packaged executable generated a five-page PDF and eight-sheet workbook. The operator confirmed the application and rendered outputs, and post-return inspection found no visible PDF/workbook defect or formula-error marker. The candidate's final SHA-256 remained `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`.
+
+The executable is unsigned and may be warned about or blocked by Windows or organizational application-control policy. Documentation must not advise weakening security controls. The candidate ZIP is ignored and must not be committed. Validation packages, transcripts, databases, reports, workbooks, and result archives are evidence only and must not be staged or shipped.
+
+No commit, push, tag, GitHub prerelease, upload, or promotion has been authorized or performed. Follow the protected checklist in the candidate record and obtain separate owner approval for each Git and publication milestone.
 
 ### Len public prerelease - 0.4.0-alpha.1
 

@@ -19,7 +19,7 @@ Current as of: 2026-09-13
 - Cache downloaded Python packages using `requirements.txt` as the dependency key. The cache contains dependencies, not Len data or generated outputs.
 - Cancel a superseded run for the same workflow and ref, and cap each job at 20 minutes.
 - Run the existing full unit-test and compilation commands. Do not build a Windows package in ordinary CI because package creation has additional runtime, licensing, privacy, and exact-artifact gates.
-- Do not add a README status badge or require the check until the workflow has completed successfully on live GitHub.
+- Add a README status badge and require the check only after the workflow has completed successfully on live GitHub.
 - Derive portable-path test expectations from the resolved mocked executable location. Windows can expose the same runner temporary directory through a long username or an equivalent DOS 8.3 alias; the contract under test is that portable data and reports stay beside the executable, not that two equivalent path spellings remain textually identical.
 
 ## Live Repository Changes
@@ -32,7 +32,10 @@ Current as of: 2026-09-13
   - Priority: `priority: high`, reserved for genuinely time-sensitive or high-impact work.
 - Enabled Dependabot vulnerability alerts and GitHub secret-scanning alerts.
 - Left automatic Dependabot security/version updates, grouped updates, CodeQL, and secret push protection disabled pending a stable live CI run and a separate operational decision.
-- Did not open issues, create a milestone, enable Discussions, upload a social-preview image, change a release, or create a branch or tag ruleset.
+- Added the active `Protect main` ruleset for the default branch. It blocks deletion and force pushes; requires a pull request, a current branch, and the `Python 3.12 tests` check; and requires zero approving reviews during the solo-maintainer phase.
+- Added the active `Protect version tags` ruleset for `v*`. It allows new matching tags but blocks updates, deletion, and force pushes for the existing `v0.3.0-alpha.1` and `v0.4.0-alpha.1` tags and future matching tags.
+- Added an always-allow repository-administrator bypass to both rulesets for explicitly chosen emergency or solo-maintainer work.
+- Did not open issues, create a milestone, enable Discussions, upload a social-preview image, change a release, or enable release immutability.
 
 ## Files Added
 
@@ -56,7 +59,8 @@ Current as of: 2026-09-13
 - The live repository displayed the revised description, all ten focused topics, 19 total active labels, enabled Dependabot alerts, and enabled secret-scanning alerts.
 - Dependabot reported 23 alerts in `packaging/requirements-release.txt`: 13 for the pinned Pillow 12.2.0 and 10 for the pinned pypdf 6.13.3. Pillow is listed in the distributed-runtime manifest; pypdf is used by tests and the release preflight but is not listed in that manifest. No alert was dismissed, no automatic update was created, and the frozen public artifact was not modified.
 - The first live run successfully parsed and executed the workflow but reported two test failures caused by `runneradmin` versus `RUNNER~1` representations of the same Windows temporary directory. The two affected assertions were corrected to calculate their expected paths from `executable.resolve().parent`, matching the application's existing path-resolution behavior.
-- After publication, verify the first live GitHub Actions run before requiring the check or adding a badge.
+- The corrective commit's second live Windows CI run completed successfully in 1 minute 2 seconds. The repository now has a truthful workflow status signal, so the README badge was added and the check became eligible for branch protection.
+- GitHub confirmed both rulesets as active. `Protect main` applies to `main` with the required CI and current-branch conditions; `Protect version tags` applies to both existing version tags with creation allowed and later movement or deletion restricted.
 
 ## Privacy and Security Impact
 
@@ -70,9 +74,6 @@ No application, database, user-data, packaging, or local development migration i
 
 ## Remaining Work
 
-- Publish the workflow after owner review and verify its first live run.
-- Add a README CI badge only after the live check is stable.
-- Create a `main` ruleset that blocks deletion and force pushes and requires the successful CI check, with an explicitly documented owner-bypass decision.
-- Protect published `v*` tags from deletion or movement.
+- Keep the Windows CI check stable and investigate future failures before weakening branch protection.
 - Review any dependency or secret-scanning alerts, then decide whether automatic update pull requests and secret push protection are useful after CI is proven.
 - Refresh Pillow, pypdf, and any affected release dependencies in a separate future-release iteration with updated notices, manifest evidence, packaging, licensing checks, and exact-artifact validation. Do not mutate the published `v0.4.0-alpha.1` ZIP.

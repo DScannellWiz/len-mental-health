@@ -3,6 +3,8 @@ Last substantive update: 2026-09-13
 
 # Len
 
+[![Windows CI](https://github.com/DScannellWiz/len-mental-health/actions/workflows/windows-ci.yml/badge.svg?branch=main)](https://github.com/DScannellWiz/len-mental-health/actions/workflows/windows-ci.yml)
+
 Len is a privacy-first, local-first Windows desktop application for recording PHQ-9 and GAD-7 check-ins over time. It combines daily assessment responses with optional notes and treatment events, then creates a readable PDF conversation aid and a normalized XLSX Analysis Workbook.
 
 Canonical repository: [github.com/DScannellWiz/len-mental-health](https://github.com/DScannellWiz/len-mental-health)

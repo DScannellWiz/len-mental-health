@@ -4,7 +4,7 @@ Current as of: 2026-09-14
 
 ## Operational Checkpoint
 
-- Current gate: Gate E dependency and CI closeout passed. Gate D passed against the exact candidate on an authorized separate Windows environment, all 23 Dependabot alerts were solved after GitHub's documented manual refresh, and the narrowly scoped final closeout documentation change must merge through the protected-main pull-request path before tagging or release.
+- Current gate: Iteration 013 and Gate E are complete. Gate D passed against the exact candidate on an authorized separate Windows environment, all 23 Dependabot alerts were solved after GitHub's documented manual refresh, pull request #1 merged the pre-release closeout through protected `main`, and the exact candidate was published and independently verified as the `v0.4.1-alpha.1` prerelease.
 - Repository state: remediation commit `a7eeec3bb5c6720bf58eca2163ec050994b98f65` is on remote `main`. Windows CI run `34907622120` completed successfully for that exact commit: Python 3.12 tests passed in 59 seconds and the overall workflow completed in 1 minute 3 seconds.
 - Frozen history: public `v0.4.0-alpha.1`, tag `b9b4aaaa3c8339183c32ca7dda7c18ea83150ec8`, and `release/Len-Portable-0.4.0-alpha.1.zip` remain unchanged.
 - Versions before remediation: Pillow 12.2.0 and pypdf 6.13.3 in `packaging/requirements-release.txt`.
@@ -13,8 +13,9 @@ Current as of: 2026-09-14
 - Validation completed: all Gate A-C checks; one controlled Python 3.12.10/PyInstaller 6.22.1 candidate build; exact-ZIP layout, safe-path, privacy/generated-artifact, runtime, launcher, canonical-license, updated Pillow-notice, and pypdf-exclusion checks; Microsoft Defender custom scans of the ZIP and extracted executable; Authenticode inspection (unsigned, as expected for this project); and exact-candidate Gate D validation on an authorized separate Windows environment, including direct and portable startup/storage, two-run fictional-data persistence, PDF/XLSX generation, and rendered-output inspection.
 - Candidate provenance: `Len-Portable-0.4.1-alpha.1.zip`; 43,806,172 bytes; SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`; built from uncommitted repository baseline `0532cfc736a373f0b3542da98747e8d077b493f1` plus the recorded Iteration 013 working-tree changes.
 - Dependabot closeout: after `a7eeec3` reached `main`, GitHub initially retained stale Pillow 12.2.0 and pypdf 6.13.3 dependency-graph records alongside the new pins and continued to show all 23 alerts. GitHub's support workflow instructed the owner to use **Security > Dependabot alerts > Refresh Dependabot alerts**. The owner performed that manual refresh, after which all 23 alerts were solved without dismissing any alert or changing either pin again. The remediation was correct; GitHub required a manual graph/alert reconciliation. No GitHub Support ticket is required.
-- Unresolved work: merge this final closeout documentation update through the normal protected-main pull-request path and allow required status checks to pass; then confirm the merged commit as the tag target, create the `v0.4.1-alpha.1` prerelease, upload only the exact preserved candidate, and independently verify the public asset. Public announcement or broader promotion remains a separate decision.
-- Exact next action: create and merge a one-file documentation PR containing only this closeout update. Do not rebuild, sign, rename, substitute, or publish the candidate before that merge and its required checks are complete.
+- Release closeout: pull request #1 merged as `6c199cc166ac4e107924f0134249c369f0c233dc`; Windows CI run `34916559851` passed on that exact merge commit; tag `v0.4.1-alpha.1` targets that commit; and the GitHub prerelease is published at `https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.4.1-alpha.1`.
+- Post-publication verification: a fresh public download named `Len-Portable-0.4.1-alpha.1.zip` was exactly 43,806,172 bytes with SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`. The release is marked as a prerelease, Dependabot reports zero open alerts, and frozen `v0.4.0-alpha.1` still targets `b9b4aaaa3c8339183c32ca7dda7c18ea83150ec8` with its recorded asset unchanged.
+- Unresolved Iteration 013 work: none. Public announcement or broader promotion remains a separate owner decision. Trusted code signing and Iteration 014 production work remain outside this iteration.
 
 ## Objectives
 
@@ -177,7 +178,9 @@ Immediately after the push and successful CI run, GitHub's dependency graph show
 
 GitHub's support workflow instructed the owner to run **Security > Dependabot alerts > Refresh Dependabot alerts**. The owner performed that documented manual refresh. GitHub then reconciled the stale dependency-graph and alert records, and all 23 remediation alerts were solved. No alerts were manually dismissed, no dependency pins were changed again, and no GitHub Support ticket is required. The corrected diagnosis is that the dependency remediation was valid and GitHub required the manual refresh/rebuild to reconcile stale superseded records.
 
-Gate E is complete for dependency remediation, CI, and Dependabot alert resolution. Release publication is not complete at this checkpoint. This final documentation update must first merge through the protected-main pull-request path with required checks green. Only the resulting approved merged commit may become the `v0.4.1-alpha.1` tag target. The prerelease must then contain only the unchanged `Len-Portable-0.4.1-alpha.1.zip` candidate (43,806,172 bytes; SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`), followed by an independent public-download verification. The executable remains unsigned, and trusted signing remains outside Iteration 013.
+Gate E is complete for dependency remediation, CI, Dependabot alert resolution, protected-main documentation closeout, and release publication. Pull request #1 contained only this Iteration 013 record, passed its required Windows CI check, and merged as `6c199cc166ac4e107924f0134249c369f0c233dc`. Windows CI run `34916559851` then passed on that exact merge commit. Tag `v0.4.1-alpha.1` targets `6c199cc166ac4e107924f0134249c369f0c233dc`, and the GitHub release is marked as a prerelease.
+
+The release contains the unchanged `Len-Portable-0.4.1-alpha.1.zip`. A fresh download from `https://github.com/DScannellWiz/len-mental-health/releases/download/v0.4.1-alpha.1/Len-Portable-0.4.1-alpha.1.zip` matched the required filename, 43,806,172-byte size, and SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`. The executable remains unsigned. Trusted signing, public promotion, and Iteration 014 production work remain outside Iteration 013.
 
 ## Privacy and Security Impact
 
@@ -189,10 +192,8 @@ No database or user-data migration is expected. Existing Len data must still be 
 
 ## Remaining Work
 
-- Create a branch for this one-file closeout update, review its exact diff, and open a pull request without staging the two future-planning documents or any candidate, validation bundle, generated output, transcript, results archive, database, report, export, log, screenshot, secret, or other generated/private artifact.
-- Merge the closeout pull request only after required CI/status checks pass, then verify the resulting merged `main` commit before creating tag `v0.4.1-alpha.1`.
-- Create the GitHub release as a prerelease and upload only the exact existing `Len-Portable-0.4.1-alpha.1.zip`; do not rebuild or substitute it.
-- Independently download the published asset and verify its filename, 43,806,172-byte size, and SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18` before declaring release completion.
+- No Iteration 013 implementation, validation, Dependabot, CI, or release-publication work remains.
+- Preserve both published prereleases and their exact tag/asset histories; do not modify, replace, retag, or otherwise change `v0.4.0-alpha.1` or `v0.4.1-alpha.1`.
 - Treat public promotion as a separate owner-authorized milestone.
 - Treat trusted code signing as future release-infrastructure work outside Iteration 013.
-- Do not modify, replace, retag, or otherwise change `v0.4.0-alpha.1`.
+- Do not begin Iteration 014 production work under this closeout.

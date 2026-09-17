@@ -1,5 +1,5 @@
-Current as of: 2026-09-13
-Last substantive update: 2026-09-13
+Current as of: 2026-09-17
+Last substantive update: 2026-09-17
 
 # Len
 
@@ -19,7 +19,8 @@ The official public binary is [`Len-Portable-0.4.0-alpha.1.zip`](https://github.
 
 ## Current Features
 
-- A questionnaire-based Today's Check-In that can record PHQ-9, GAD-7, or both on the same date and shows independent completion status.
+- A definition-driven Today's Check-In with a compact questionnaire roster, one active form at a time, and independent PHQ-9/GAD-7 completion status for each date.
+- Explicit unanswered choices, with one saved submission per questionnaire per calendar date and deliberate same-day saves updating that submission.
 - A universal safety message before the first question and in every PDF footer; PHQ-9 item 9 context remains PHQ-9-only.
 - Previous Day and Next Day navigation, existing-date loading, future-date prevention, and unsaved-change protection.
 - History / Manage Entries tools for editing and confirmed deletion of assessments, notes, and treatment events.
@@ -27,7 +28,7 @@ The official public binary is [`Len-Portable-0.4.0-alpha.1.zip`](https://github.
 - Review summaries, recent charts, treatment-cycle views, and long-term trends.
 - Chart point values available by hover, click, and keyboard.
 - A compact full-history PDF designed to support—not replace—a conversation with a licensed clinician.
-- Selectable PDF and normalized XLSX outputs with questionnaire-specific trends and current 14-day item-profile records.
+- Date-range-first PDF and normalized XLSX selection, limited to questionnaires with records in that range, with definition-version-aware trends and current 14-day item-profile records.
 - One local `reports` folder for both generated outputs.
 
 ## Running from Source
@@ -72,7 +73,7 @@ Before replacing or updating the application:
 4. For a portable update, extract the new release into a new folder rather than overwriting the old folder. Copy the backed-up `phq9_tracker.sqlite` into the new extracted folder before launching it with the portable batch launcher.
 5. Confirm that History shows the expected records before deleting the old folder or backup.
 
-Current migrations are designed to preserve older PHQ-9 records, but backup and verification are still required. Reports are separate files; deleting records from the app or deleting the database does not automatically delete previously generated reports. In-app record deletion and manual database deletion are permanent without a backup. Deleting the database while the app is closed resets that storage location; the next launch creates a new blank database.
+Current migrations add immutable questionnaire-definition snapshots and normalized submission/response records while preserving the existing PHQ-9 and reusable assessment tables. They are designed to preserve older PHQ-9/GAD-7 records, but backup and verification are still required. A complete database backup made while Len is closed contains both the legacy compatibility records and the versioned normalized records; restore the whole database file rather than copying individual tables. Reports are separate files, so deleting records from the app or deleting/restoring the database does not automatically delete previously generated reports. In-app record deletion and manual database deletion are permanent without a backup. Deleting the database while the app is closed resets that storage location; the next launch creates a new blank database.
 
 ## Privacy and Support Boundary
 

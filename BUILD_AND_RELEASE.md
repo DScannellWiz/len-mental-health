@@ -1,5 +1,5 @@
-Current as of: 2026-09-14
-Last substantive update: 2026-09-14
+Current as of: 2026-09-17
+Last substantive update: 2026-09-17
 
 # Build and Release Notes
 
@@ -123,13 +123,15 @@ Iteration 008.1 requires no schema migration. Chart callouts, guarded date loadi
 
 Iteration 008.2 requires no schema migration. It derives current 14-day item-profile records from existing assessment entries, corrects event-type display mapping, and changes only generated-output routing and Review conveniences.
 
+Iteration 014 adds two transactional, idempotent migrations: an append-only migration ledger with immutable questionnaire-definition snapshots, followed by normalized versioned questionnaire submissions/responses. Startup stores exact PHQ-9/GAD-7 v1 definitions, backfills from `assessment_entries`, and verifies identity, response shape/order/value/score, totals, severity, source, timestamps, and uniqueness before commit. Reads prefer verified normalized rows with an explicit legacy fallback. Writes keep normalized storage and `assessment_entries` atomic, and PHQ-9 writes also keep `phq9_entries` synchronized. The migration does not drop, rename, repurpose, or destructively rewrite either compatibility table.
+
 ## User Data During Backup and Updates
 
 Before an update, close the application and back up the database plus any reports the user wants to retain. For a portable update, extract the new version to a new folder; do not overwrite the only working copy in place. Copy the backed-up `phq9_tracker.sqlite` into the new folder before starting the portable batch launcher, verify the expected History records, and retain the old folder or backup until verification succeeds.
 
 Installed-mode or direct-EXE data under `%LOCALAPPDATA%\PHQ9Tracker` is separate from portable-mode data. Changing launch methods can make a valid database appear missing. Installer replacement is designed not to overwrite LocalAppData, but installer behavior remains less validated than the portable path and should not be the initial public binary offering.
 
-Current startup migration preserves legacy PHQ-9 records and uses non-destructive insertion into the reusable assessment table. There is no automatic backup, restore wizard, encryption, or rollback mechanism. A backup remains mandatory before relying on migration behavior.
+Current startup migration preserves legacy PHQ-9/GAD-7 records, applies schema changes in a transaction, and fails closed when a migration checksum, immutable definition snapshot, or backfilled record does not reconcile. There is no automatic backup, restore wizard, or encryption. Transaction rollback protects a failed migration attempt, but it is not a substitute for a closed-application backup. Back up and restore the complete database file, then verify expected History records before deleting the previous copy.
 
 ## Windows Security and Code Signing
 
@@ -161,12 +163,15 @@ Update these together for each release:
 - Launch installed app.
 - Launch portable app.
 - Confirm existing PHQ-9 database rows migrate into `assessment_entries`.
+- Restore a closed-application pre-Iteration-014 database backup, launch again, and confirm the same historical rows migrate into the compatibility and normalized stores without duplication or loss.
 - Save a Today's Check-In with PHQ-9, GAD-7, notes, and optional treatment event.
+- At a reduced supported window size, use the keyboard to move through the questionnaire roster and active definition-driven form; confirm unanswered required items are blocked, a selected zero is accepted, switching forms preserves unsaved answers, and one/both questionnaire saves retain independent completion state.
 - Navigate across month and year boundaries, confirm an existing date auto-loads, verify future dates are blocked, and confirm unsaved-change protection.
 - Open Review and inspect recent, treatment-cycle, and long-term views using synthetic data.
 - Hover and click representative chart points at the left edge, center, right edge, highest score, and lowest score; confirm every callout shows the exact date, series, and score without clipping. Tab to a chart and verify Left/Right, Enter, and Escape.
 - Change Today and History date fields with and without unsaved edits. Confirm safe changes auto-load, unsafe changes remain guarded, Enter loads explicitly, and no save can apply visible responses to a date that is not loaded.
 - Confirm Review shows **Refresh**, **Import Spreadsheet**, **Generate PDF**, **Analysis Workbook**, and **Open Reports Folder**, with no separate Clinician Report tab.
+- For reports, choose the date range first; confirm only questionnaires with records in that range are eligible and that incompatible definition versions are identified rather than blended.
 - Generate the full-history clinician PDF when `reportlab` and `Pillow` are available and confirm that no companion CSV is created.
 - Confirm the clinician PDF has no clipped content, preserves every included journal entry in full, and omits duplicate raw PHQ-9 tables. Typical reports remain compact, but narrative-heavy reports may exceed four pages rather than truncate user text.
 - Confirm the PDF's current 14-day item profile shows PHQ-9 and GAD-7 symptom-present day counts, recorded-day coverage, and 0-3 frequency scores with missing days described as missing information.
@@ -183,6 +188,8 @@ Update these together for each release:
 - Confirm portable builds create no system shortcuts.
 
 ## Current Validation Status
+
+Iteration 014 passes 106 tests in the controlled project environment, including a closed-database backup/restore/re-migration regression, plus application/test compilation and Git whitespace validation. Focused persistence (16) and report/privacy (4) runs also pass. Dan completed and reported **PASS** for the required isolated Windows keyboard/reduced-window source walkthrough with fictional data. Iteration 014 is complete, but the versioned questionnaire framework remains unreleased; no package, release, or public artifact inherits this source validation.
 
 ### Unpublished security-maintenance candidate - 0.4.1-alpha.1
 

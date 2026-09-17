@@ -1,5 +1,5 @@
-Current as of: 2026-09-14
-Last substantive update: 2026-09-14
+Current as of: 2026-09-17
+Last substantive update: 2026-09-17
 
 # Roadmap
 
@@ -34,6 +34,17 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Preserved the local-first data model and existing database compatibility; no migration is required.
 - Prepared protected release documentation while leaving commit, push, tag, GitHub prerelease, upload, and public promotion subject to separate owner approval.
 - Kept future questionnaire-framework and Windows code-signing planning outside this iteration.
+
+## Iteration 014: Versioned Questionnaire Framework - Complete
+
+- Added immutable, validated questionnaire definitions, stable question/option identities, application-owned deterministic scoring/profile strategies, and fail-closed capability checks.
+- Added an append-only migration ledger, immutable definition snapshots, normalized versioned submissions/responses, verified legacy backfill, normalized-first reads, and atomic compatibility writes without dropping or repurposing the existing tables.
+- Replaced fixed Today forms with a compact status roster and one reusable definition-driven active form while preserving one submission per questionnaire per calendar date.
+- Made Review analytics, report eligibility, PDFs, Analysis Workbooks, and CLI report generation registry-driven and definition-version-aware.
+- Preserved exact PHQ-9/GAD-7 behavior, PHQ-9 Item 9 exclusivity, the universal safety message, existing historical records and aliases, and the local-only privacy boundary.
+- Kept PHQ-9 and GAD-7 as the only built-in questionnaires. Any future built-in still requires explicit redistribution-rights and clinical-safety approval.
+- Deferred custom questionnaire authoring/import. A future custom instrument may explicitly select user-defined deterministic scoring through an allowlisted application-owned strategy, but Len will not automatically add clinical interpretation, severity bands, risk flags, diagnosis, or treatment narrative.
+- Automated regression/documentation closeout and the isolated Windows keyboard/reduced-window walkthrough are complete.
 
 ## Iteration 010: Extensible Questionnaire Framework - Implementation Complete
 
@@ -283,7 +294,7 @@ The planned September 2026 Closed Alpha was abandoned before enrollment or distr
 
 - External assessment definition files.
 - Reusable scoring and import adapters.
-- Configurable questionnaires.
+- Configurable custom questionnaires with explicit deterministic scoring through allowlisted application-owned strategies and raw-only/descriptive outputs; no automatic clinical interpretation.
 - Plugin-ready assessment library.
 
 ## Long-Term Direction

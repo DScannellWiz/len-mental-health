@@ -1,5 +1,5 @@
-Current as of: 2026-09-10
-Last substantive update: 2026-09-10
+Current as of: 2026-09-17
+Last substantive update: 2026-09-17
 
 # Privacy and Data Handling
 
@@ -7,7 +7,7 @@ Len is designed for local use. It does not intentionally upload PHQ-9 or GAD-7 r
 
 ## Sensitive Local Files
 
-The application does not encrypt its SQLite database, generated PDFs, generated workbooks, or backups. Anyone or any software with access to those files may be able to read sensitive content.
+The application does not encrypt its SQLite database, generated PDFs, generated workbooks, or backups. The database includes immutable questionnaire-definition snapshots plus versioned normalized submissions/responses alongside compatibility records; all of those records are part of the same sensitive file. Anyone or any software with access to these files may be able to read sensitive content.
 
 Storage depends on how the application is started:
 
@@ -21,11 +21,13 @@ Starting the packaged EXE directly does not activate portable mode. Users who al
 
 ## Backup, Update, and Deletion
 
-Close the application before copying or replacing a database. Back up the database and any reports that must be retained before an update, reset, or deletion. Backups are sensitive files too and should be stored only in a location the user controls.
+Close the application before copying or replacing a database. Back up the entire database and any reports that must be retained before an update, reset, or deletion; do not copy or restore individual SQLite tables. Backups are sensitive files too and should be stored only in a location the user controls.
 
 For a portable update, extract the new version into a new folder. Copy the backed-up database into that folder before using the portable batch launcher, confirm that expected records appear, and retain the old folder or backup until verification is complete. Do not overwrite the only working portable folder in place.
 
 Deleting an assessment, note, or treatment event in the application is permanent without a backup. Deleting `phq9_tracker.sqlite` while the app is closed resets that storage location; the next launch creates a blank database. Generated reports are independent files and are not automatically removed when database records are deleted.
+
+Len's questionnaire framework does not send definitions or responses to an external service. Only clearly redistributable instruments may be included as built-ins. Future custom instruments may explicitly select user-defined deterministic scoring through an allowlisted application-owned strategy, but Len will not automatically generate clinical interpretation, severity bands, risk flags, diagnosis, or treatment narrative for them.
 
 ## Repository Boundary
 

@@ -1,5 +1,9 @@
 import argparse
+import hashlib
+import json
+import math
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -8,6 +12,7 @@ from contextlib import closing
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from types import MappingProxyType
 from xml.sax.saxutils import escape
 from tkinter import (
     BOTH,
@@ -55,6 +60,7 @@ try:
     from reportlab.lib.units import inch
     from reportlab.platypus import (
         Image,
+        KeepTogether,
         PageBreak,
         Paragraph,
         SimpleDocTemplate,
@@ -66,6 +72,7 @@ except Exception:
     colors = None
     inch = 72
     Image = None
+    KeepTogether = None
     PageBreak = None
     Paragraph = None
     SimpleDocTemplate = None
@@ -155,14 +162,19 @@ def offer_to_open_generated_file(path: Path, output_name: str) -> None:
 DB_PATH = default_db_path()
 BUNDLED_PYTHON = Path(os.environ["PHQ9_TRACKER_BUNDLED_PYTHON"]) if os.environ.get("PHQ9_TRACKER_BUNDLED_PYTHON") else None
 DISCLAIMER = "This report is for discussion with a licensed clinician and is not a diagnosis."
+NON_DIAGNOSTIC_OUTPUT_NOTICE = (
+    "Questionnaire outputs describe recorded responses and deterministic calculations only. "
+    "They do not provide a diagnosis, treatment recommendation, or emergency monitoring."
+)
 UNIVERSAL_SAFETY_MESSAGE = (
     "If you feel unsafe or may act on thoughts of self-harm, contact local emergency services "
     "or a crisis service now. Len does not monitor responses or provide emergency help."
 )
 DAILY_SCORE_LABEL = "Daily Severity Score"
 FREQUENCY_SCORE_LABEL = "14-Day Symptom Frequency Score"
-ANALYSIS_WORKBOOK_SCHEMA_VERSION = "1.1"
+ANALYSIS_WORKBOOK_SCHEMA_VERSION = "1.2"
 COMPACT_SPINBOX_PADDING = (2, 0)
+UNANSWERED_RESPONSE = "Select a response"
 SCORING_EXPLANATION = f"""{APPLICATION_NAME} calculates two related but different measurements.
 
 Daily Severity Score
@@ -215,38 +227,719 @@ GAD7_ITEM_LABELS = [
 ITEM_LABELS = PHQ9_ITEM_LABELS
 
 
+DEFINITION_ID_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+INTERPRETATION_POLICIES = frozenset({"validated_builtin", "descriptive_only", "raw_only"})
+DEFINITION_ORIGINS = frozenset({"builtin", "custom"})
+QUESTIONNAIRE_BEHAVIORS = frozenset()
+QUESTION_BEHAVIORS = frozenset({"phq9_item9_context"})
+
+
 @dataclass(frozen=True)
-class AssessmentDefinition:
-    assessment_id: str
+class ResponseOption:
+    value: str | int
+    label: str
+    score: int | float | None = None
+
+
+@dataclass(frozen=True)
+class QuestionDefinition:
+    question_id: str
+    prompt: str
+    options: tuple[ResponseOption, ...]
+    response_type: str = "single_choice"
+    required: bool = True
+    behavior_ids: tuple[str, ...] = ()
+    report_label: str | None = None
+
+
+@dataclass(frozen=True)
+class ScoringStrategyDescriptor:
+    """Application-owned scoring capability referenced by a stable definition ID."""
+
+    strategy_id: str
+    implementation_id: str | None
+    deterministic: bool
+
+
+@dataclass(frozen=True)
+class ProfileStrategyDescriptor:
+    """Application-owned profile capability referenced by a stable definition ID."""
+
+    strategy_id: str
+    implementation_id: str | None
+
+
+SCORING_STRATEGY_DESCRIPTORS = MappingProxyType(
+    {
+        "sum": ScoringStrategyDescriptor("sum", "sum_option_scores_v1", True),
+        "subscale_sum": ScoringStrategyDescriptor("subscale_sum", None, True),
+        "none": ScoringStrategyDescriptor("none", "no_total", True),
+    }
+)
+PROFILE_STRATEGY_DESCRIPTORS = MappingProxyType(
+    {
+        "symptom_presence_14d": ProfileStrategyDescriptor(
+            "symptom_presence_14d", "symptom_presence_thresholds_14d_v1"
+        ),
+        "item_history": ProfileStrategyDescriptor("item_history", None),
+        "daily_total": ProfileStrategyDescriptor("daily_total", None),
+        "subscale_trend": ProfileStrategyDescriptor("subscale_trend", None),
+        "none": ProfileStrategyDescriptor("none", "no_profile"),
+    }
+)
+SCORING_RULES = frozenset(SCORING_STRATEGY_DESCRIPTORS)
+PROFILE_RULES = frozenset(PROFILE_STRATEGY_DESCRIPTORS)
+
+
+@dataclass(frozen=True)
+class QuestionnaireDefinition:
+    questionnaire_id: str
+    definition_version: int
     display_name: str
     short_name: str
-    item_labels: list[str]
-    max_score: int
-    source: str
-    redistribution_status: str
-    has_item9_safety_context: bool = False
+    description: str
+    timeframe_text: str
+    source_citation: str
+    source_url: str
+    rights_status: str
+    rights_source_url: str
+    required_notice: str
+    origin: str
+    items: tuple[QuestionDefinition, ...]
+    scoring_rule: str
+    score_min: int | float | None
+    score_max: int | float | None
+    profile_rule: str
+    interpretation_policy: str
+    behavior_ids: tuple[str, ...] = ()
+    active: bool = True
+
+    @property
+    def assessment_id(self) -> str:
+        """Compatibility name retained for existing storage and API callers."""
+        return self.questionnaire_id
 
     @property
     def item_count(self) -> int:
-        return len(self.item_labels)
+        return len(self.items)
+
+    @property
+    def item_labels(self) -> list[str]:
+        """Return a copy so legacy callers cannot mutate the frozen definition."""
+        return [item.report_label or item.prompt for item in self.items]
+
+    @property
+    def max_score(self) -> int | float | None:
+        return self.score_max
+
+    @property
+    def source(self) -> str:
+        return self.source_citation
+
+    @property
+    def redistribution_status(self) -> str:
+        return self.rights_status
+
+    @property
+    def has_item9_safety_context(self) -> bool:
+        return any("phq9_item9_context" in item.behavior_ids for item in self.items)
 
 
+# Assessment terminology remains an import-level compatibility alias. New code
+# should use the questionnaire vocabulary above.
+AssessmentDefinition = QuestionnaireDefinition
+
+
+def _validate_identifier(value: str, field_name: str) -> None:
+    if not isinstance(value, str) or not DEFINITION_ID_PATTERN.fullmatch(value):
+        raise ValueError(f"{field_name} must be a stable lowercase identifier.")
+
+
+def validate_questionnaire_definition(definition: QuestionnaireDefinition) -> QuestionnaireDefinition:
+    _validate_identifier(definition.questionnaire_id, "questionnaire_id")
+    if isinstance(definition.definition_version, bool) or not isinstance(definition.definition_version, int) or definition.definition_version < 1:
+        raise ValueError("definition_version must be a positive integer.")
+    for field_name in ("display_name", "short_name", "description", "timeframe_text", "source_citation"):
+        if not isinstance(getattr(definition, field_name), str) or not getattr(definition, field_name).strip():
+            raise ValueError(f"{field_name} is required.")
+    if definition.origin not in DEFINITION_ORIGINS:
+        raise ValueError(f"Unknown definition origin: {definition.origin}")
+    if definition.scoring_rule not in SCORING_RULES:
+        raise ValueError(f"Unknown scoring rule: {definition.scoring_rule}")
+    if definition.profile_rule not in PROFILE_RULES:
+        raise ValueError(f"Unknown profile rule: {definition.profile_rule}")
+    if definition.interpretation_policy not in INTERPRETATION_POLICIES:
+        raise ValueError(f"Unknown interpretation policy: {definition.interpretation_policy}")
+    if definition.origin == "custom" and definition.interpretation_policy == "validated_builtin":
+        raise ValueError("Custom questionnaires cannot use validated_builtin interpretation.")
+    if definition.origin == "builtin":
+        for field_name in ("source_url", "rights_status", "rights_source_url"):
+            if not isinstance(getattr(definition, field_name), str) or not getattr(definition, field_name).strip():
+                raise ValueError(f"Built-in questionnaires require {field_name}.")
+    if not isinstance(definition.required_notice, str):
+        raise ValueError("required_notice must be text.")
+    if not isinstance(definition.active, bool):
+        raise ValueError("active must be true or false.")
+    if not isinstance(definition.behavior_ids, tuple) or not all(isinstance(value, str) for value in definition.behavior_ids):
+        raise ValueError("Questionnaire behavior IDs must be an immutable tuple of strings.")
+    unknown_behaviors = set(definition.behavior_ids) - QUESTIONNAIRE_BEHAVIORS
+    if unknown_behaviors:
+        raise ValueError(f"Unknown questionnaire behavior: {sorted(unknown_behaviors)[0]}")
+    if not definition.items:
+        raise ValueError("Questionnaire definitions require at least one question.")
+
+    question_ids: set[str] = set()
+    calculated_min = 0.0
+    calculated_max = 0.0
+    for item in definition.items:
+        _validate_identifier(item.question_id, "question_id")
+        if item.question_id in question_ids:
+            raise ValueError(f"Duplicate question_id: {item.question_id}")
+        question_ids.add(item.question_id)
+        if not isinstance(item.prompt, str) or not item.prompt.strip():
+            raise ValueError(f"Question {item.question_id} requires a prompt.")
+        if item.response_type != "single_choice":
+            raise ValueError(f"Unsupported response type: {item.response_type}")
+        if not isinstance(item.required, bool):
+            raise ValueError(f"Question {item.question_id} required must be true or false.")
+        if item.report_label is not None and (not isinstance(item.report_label, str) or not item.report_label.strip()):
+            raise ValueError(f"Question {item.question_id} has an invalid report label.")
+        if not isinstance(item.behavior_ids, tuple) or not all(isinstance(value, str) for value in item.behavior_ids):
+            raise ValueError(f"Question {item.question_id} behavior IDs must be an immutable tuple of strings.")
+        unknown_item_behaviors = set(item.behavior_ids) - QUESTION_BEHAVIORS
+        if unknown_item_behaviors:
+            raise ValueError(f"Unknown question behavior: {sorted(unknown_item_behaviors)[0]}")
+        if "phq9_item9_context" in item.behavior_ids and not (
+            definition.questionnaire_id == "phq9" and item.question_id == "phq9.item9"
+        ):
+            raise ValueError("phq9_item9_context is restricted to phq9.item9.")
+        if not item.options:
+            raise ValueError(f"Question {item.question_id} requires response options.")
+
+        option_values: set[str | int] = set()
+        option_scores: list[float] = []
+        for option in item.options:
+            if isinstance(option.value, bool) or not isinstance(option.value, (str, int)):
+                raise ValueError(f"Question {item.question_id} has an invalid option value.")
+            if option.value in option_values:
+                raise ValueError(f"Question {item.question_id} has duplicate option values.")
+            option_values.add(option.value)
+            if not isinstance(option.label, str) or not option.label.strip():
+                raise ValueError(f"Question {item.question_id} has an option without a label.")
+            if option.score is not None:
+                if isinstance(option.score, bool) or not isinstance(option.score, (int, float)) or not math.isfinite(option.score):
+                    raise ValueError(f"Question {item.question_id} has an invalid option score.")
+                option_scores.append(float(option.score))
+
+        if definition.scoring_rule == "sum":
+            if len(option_scores) != len(item.options):
+                raise ValueError("Sum-scored questionnaires require a numeric score for every option.")
+            calculated_min += min(option_scores)
+            calculated_max += max(option_scores)
+
+    if definition.scoring_rule == "sum":
+        if (
+            definition.score_min is None
+            or definition.score_max is None
+            or isinstance(definition.score_min, bool)
+            or isinstance(definition.score_max, bool)
+            or not isinstance(definition.score_min, (int, float))
+            or not isinstance(definition.score_max, (int, float))
+            or not math.isfinite(definition.score_min)
+            or not math.isfinite(definition.score_max)
+        ):
+            raise ValueError("Sum-scored questionnaires require score bounds.")
+        if not math.isclose(float(definition.score_min), calculated_min) or not math.isclose(float(definition.score_max), calculated_max):
+            raise ValueError("Score bounds do not match the declared response options.")
+    elif definition.score_min is not None or definition.score_max is not None:
+        raise ValueError("Nonscored questionnaires cannot declare score bounds.")
+    return definition
+
+
+def questionnaire_definition_data(definition: QuestionnaireDefinition) -> dict[str, object]:
+    """Return the stable JSON-compatible representation used by future snapshots."""
+    validate_questionnaire_definition(definition)
+    return {
+        "questionnaire_id": definition.questionnaire_id,
+        "definition_version": definition.definition_version,
+        "display_name": definition.display_name,
+        "short_name": definition.short_name,
+        "description": definition.description,
+        "timeframe_text": definition.timeframe_text,
+        "source_citation": definition.source_citation,
+        "source_url": definition.source_url,
+        "rights_status": definition.rights_status,
+        "rights_source_url": definition.rights_source_url,
+        "required_notice": definition.required_notice,
+        "origin": definition.origin,
+        "items": [
+            {
+                "question_id": item.question_id,
+                "prompt": item.prompt,
+                "response_type": item.response_type,
+                "options": [
+                    {"value": option.value, "label": option.label, "score": option.score}
+                    for option in item.options
+                ],
+                "required": item.required,
+                "behavior_ids": list(item.behavior_ids),
+                "report_label": item.report_label,
+            }
+            for item in definition.items
+        ],
+        "scoring_rule": definition.scoring_rule,
+        "score_min": definition.score_min,
+        "score_max": definition.score_max,
+        "profile_rule": definition.profile_rule,
+        "interpretation_policy": definition.interpretation_policy,
+        "behavior_ids": list(definition.behavior_ids),
+        "active": definition.active,
+    }
+
+
+def serialize_questionnaire_definition(definition: QuestionnaireDefinition) -> str:
+    return json.dumps(questionnaire_definition_data(definition), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def deserialize_questionnaire_definition(payload: str) -> QuestionnaireDefinition:
+    """Parse definition-only JSON; validation rejects unsafe or unsupported capabilities."""
+    try:
+        data = json.loads(payload)
+        if not isinstance(data, dict):
+            raise TypeError("Definition JSON must contain an object.")
+        items = tuple(
+            QuestionDefinition(
+                question_id=item["question_id"],
+                prompt=item["prompt"],
+                response_type=item["response_type"],
+                options=tuple(
+                    ResponseOption(value=option["value"], label=option["label"], score=option["score"])
+                    for option in item["options"]
+                ),
+                required=item["required"],
+                behavior_ids=tuple(item["behavior_ids"]),
+                report_label=item["report_label"],
+            )
+            for item in data["items"]
+        )
+        definition = QuestionnaireDefinition(
+            questionnaire_id=data["questionnaire_id"],
+            definition_version=data["definition_version"],
+            display_name=data["display_name"],
+            short_name=data["short_name"],
+            description=data["description"],
+            timeframe_text=data["timeframe_text"],
+            source_citation=data["source_citation"],
+            source_url=data["source_url"],
+            rights_status=data["rights_status"],
+            rights_source_url=data["rights_source_url"],
+            required_notice=data["required_notice"],
+            origin=data["origin"],
+            items=items,
+            scoring_rule=data["scoring_rule"],
+            score_min=data["score_min"],
+            score_max=data["score_max"],
+            profile_rule=data["profile_rule"],
+            interpretation_policy=data["interpretation_policy"],
+            behavior_ids=tuple(data["behavior_ids"]),
+            active=data["active"],
+        )
+    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("Invalid questionnaire definition JSON.") from exc
+    return validate_questionnaire_definition(definition)
+
+
+STANDARD_RESPONSE_OPTIONS = tuple(
+    ResponseOption(value=value, label=label, score=value)
+    for value, label in enumerate(("Not at all", "Several days", "More than half the days", "Nearly every day"))
+)
+
+
+def _builtin_questions(questionnaire_id: str, labels: list[str]) -> tuple[QuestionDefinition, ...]:
+    return tuple(
+        QuestionDefinition(
+            question_id=f"{questionnaire_id}.item{index}",
+            prompt=label,
+            options=STANDARD_RESPONSE_OPTIONS,
+            behavior_ids=("phq9_item9_context",) if questionnaire_id == "phq9" and index == 9 else (),
+            report_label=label,
+        )
+        for index, label in enumerate(labels, start=1)
+    )
+
+
+PHQ_SCREENER_SOURCE_URL = "https://www.phqscreeners.com/select-screener"
 ASSESSMENTS = {
-    "phq9": AssessmentDefinition(
-        "phq9", "PHQ-9", "PHQ-9", PHQ9_ITEM_LABELS, 27,
-        "Patient Health Questionnaire-9", "Redistributable built-in", True,
+    "phq9": QuestionnaireDefinition(
+        questionnaire_id="phq9",
+        definition_version=1,
+        display_name="PHQ-9",
+        short_name="PHQ-9",
+        description="Patient Health Questionnaire-9",
+        timeframe_text="Record responses for the selected check-in date.",
+        source_citation="Patient Health Questionnaire-9",
+        source_url=PHQ_SCREENER_SOURCE_URL,
+        rights_status="Redistributable built-in",
+        rights_source_url=PHQ_SCREENER_SOURCE_URL,
+        required_notice="",
+        origin="builtin",
+        items=_builtin_questions("phq9", PHQ9_ITEM_LABELS),
+        scoring_rule="sum",
+        score_min=0,
+        score_max=27,
+        profile_rule="symptom_presence_14d",
+        interpretation_policy="validated_builtin",
     ),
-    "gad7": AssessmentDefinition(
-        "gad7", "GAD-7", "GAD-7", GAD7_ITEM_LABELS, 21,
-        "Generalized Anxiety Disorder-7", "Redistributable built-in",
+    "gad7": QuestionnaireDefinition(
+        questionnaire_id="gad7",
+        definition_version=1,
+        display_name="GAD-7",
+        short_name="GAD-7",
+        description="Generalized Anxiety Disorder-7",
+        timeframe_text="Record responses for the selected check-in date.",
+        source_citation="Generalized Anxiety Disorder-7",
+        source_url=PHQ_SCREENER_SOURCE_URL,
+        rights_status="Redistributable built-in",
+        rights_source_url=PHQ_SCREENER_SOURCE_URL,
+        required_notice="",
+        origin="builtin",
+        items=_builtin_questions("gad7", GAD7_ITEM_LABELS),
+        scoring_rule="sum",
+        score_min=0,
+        score_max=21,
+        profile_rule="symptom_presence_14d",
+        interpretation_policy="validated_builtin",
     ),
 }
+for _definition in ASSESSMENTS.values():
+    validate_questionnaire_definition(_definition)
+
 ASSESSMENT_ORDER = ["phq9", "gad7"]
-# Questionnaire terminology is the public extension contract. Assessment aliases
-# remain for database and API compatibility with existing Len installations.
-QuestionnaireDefinition = AssessmentDefinition
 QUESTIONNAIRES = ASSESSMENTS
 QUESTIONNAIRE_ORDER = ASSESSMENT_ORDER
+
+
+@dataclass(frozen=True)
+class SchemaMigration:
+    """One application-owned, checksummed SQLite schema migration."""
+
+    migration_id: str
+    statements: tuple[str, ...]
+
+    @property
+    def checksum(self) -> str:
+        payload = f"{self.migration_id}\n" + "\n".join(statement.strip() for statement in self.statements)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+SCHEMA_MIGRATION_LEDGER_STATEMENTS = (
+    """
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+        migration_id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL CHECK(application_id = 'len'),
+        checksum_sha256 TEXT NOT NULL CHECK(length(checksum_sha256) = 64),
+        applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS schema_migrations_no_update
+    BEFORE UPDATE ON schema_migrations
+    BEGIN
+        SELECT RAISE(ABORT, 'schema migration records are immutable');
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS schema_migrations_no_delete
+    BEFORE DELETE ON schema_migrations
+    BEGIN
+        SELECT RAISE(ABORT, 'schema migration records are immutable');
+    END
+    """,
+)
+
+QUESTIONNAIRE_SNAPSHOT_MIGRATION = SchemaMigration(
+    migration_id="len.014.001.questionnaire_definition_snapshots",
+    statements=(
+        """
+        CREATE TABLE questionnaire_definition_snapshots (
+            questionnaire_id TEXT NOT NULL,
+            definition_version INTEGER NOT NULL CHECK(definition_version > 0),
+            definition_json TEXT NOT NULL CHECK(length(definition_json) > 0),
+            definition_sha256 TEXT NOT NULL CHECK(length(definition_sha256) = 64),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (questionnaire_id, definition_version)
+        )
+        """,
+        """
+        CREATE TRIGGER questionnaire_definition_snapshots_no_update
+        BEFORE UPDATE ON questionnaire_definition_snapshots
+        BEGIN
+            SELECT RAISE(ABORT, 'questionnaire definition snapshots are immutable');
+        END
+        """,
+        """
+        CREATE TRIGGER questionnaire_definition_snapshots_no_delete
+        BEFORE DELETE ON questionnaire_definition_snapshots
+        BEGIN
+            SELECT RAISE(ABORT, 'questionnaire definition snapshots are immutable');
+        END
+        """,
+    ),
+)
+
+NORMALIZED_QUESTIONNAIRE_STORAGE_MIGRATION = SchemaMigration(
+    migration_id="len.014.002.normalized_questionnaire_storage",
+    statements=(
+        """
+        CREATE TABLE questionnaire_submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            questionnaire_id TEXT NOT NULL,
+            definition_version INTEGER NOT NULL CHECK(definition_version > 0),
+            entry_date TEXT NOT NULL,
+            total_score NUMERIC,
+            severity TEXT NOT NULL,
+            notes TEXT,
+            note_tag TEXT,
+            source TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE (questionnaire_id, entry_date),
+            FOREIGN KEY (questionnaire_id, definition_version)
+                REFERENCES questionnaire_definition_snapshots (questionnaire_id, definition_version)
+                ON UPDATE RESTRICT ON DELETE RESTRICT
+        )
+        """,
+        """
+        CREATE TABLE questionnaire_responses (
+            submission_id INTEGER NOT NULL,
+            question_id TEXT NOT NULL,
+            response_order INTEGER NOT NULL CHECK(response_order > 0),
+            response_value_json TEXT NOT NULL,
+            response_score NUMERIC,
+            PRIMARY KEY (submission_id, question_id),
+            UNIQUE (submission_id, response_order),
+            FOREIGN KEY (submission_id) REFERENCES questionnaire_submissions (id)
+                ON UPDATE RESTRICT ON DELETE CASCADE
+        )
+        """,
+    ),
+)
+
+SCHEMA_MIGRATIONS = (
+    QUESTIONNAIRE_SNAPSHOT_MIGRATION,
+    NORMALIZED_QUESTIONNAIRE_STORAGE_MIGRATION,
+)
+
+
+def _store_questionnaire_definition_snapshots(
+    conn: sqlite3.Connection,
+    definitions: tuple[QuestionnaireDefinition, ...],
+) -> None:
+    for definition in definitions:
+        payload = serialize_questionnaire_definition(definition)
+        payload_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        existing = conn.execute(
+            """
+            SELECT definition_json, definition_sha256
+            FROM questionnaire_definition_snapshots
+            WHERE questionnaire_id = ? AND definition_version = ?
+            """,
+            (definition.questionnaire_id, definition.definition_version),
+        ).fetchone()
+        if existing is None:
+            conn.execute(
+                """
+                INSERT INTO questionnaire_definition_snapshots (
+                    questionnaire_id, definition_version, definition_json, definition_sha256
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (definition.questionnaire_id, definition.definition_version, payload, payload_hash),
+            )
+        elif existing != (payload, payload_hash):
+            raise RuntimeError(
+                "Questionnaire definition version conflict for "
+                f"{definition.questionnaire_id} v{definition.definition_version}."
+            )
+
+
+def _backfill_normalized_questionnaire_entries(conn: sqlite3.Connection) -> None:
+    legacy_rows = conn.execute(
+        """
+        SELECT
+            assessment_id, entry_date,
+            item1, item2, item3, item4, item5, item6, item7, item8, item9,
+            total, severity, notes, note_tag, source, created_at, updated_at
+        FROM assessment_entries
+        ORDER BY assessment_id, entry_date
+        """
+    ).fetchall()
+    for row in legacy_rows:
+        questionnaire_id, entry_date = row[0], row[1]
+        try:
+            definition = QUESTIONNAIRES[questionnaire_id]
+        except KeyError as exc:
+            raise RuntimeError(f"Cannot backfill unknown questionnaire: {questionnaire_id}") from exc
+
+        stored_items = list(row[2:11])
+        responses = stored_items[: definition.item_count]
+        if any(value is None for value in responses):
+            raise RuntimeError(f"Legacy submission has unanswered required items: {questionnaire_id} {entry_date}")
+        if any(value is not None for value in stored_items[definition.item_count :]):
+            raise RuntimeError(f"Legacy submission has unexpected extra items: {questionnaire_id} {entry_date}")
+
+        recorded_total, recorded_severity = row[11], row[12]
+        calculated_total = calculate_questionnaire_total(definition, responses)
+        if recorded_total != calculated_total:
+            raise RuntimeError(f"Legacy total does not reconcile: {questionnaire_id} {entry_date}")
+        expected_severity = severity_for_assessment(questionnaire_id, recorded_total)
+        if recorded_severity != expected_severity:
+            raise RuntimeError(f"Legacy severity does not reconcile: {questionnaire_id} {entry_date}")
+
+        submission_values = (
+            questionnaire_id,
+            definition.definition_version,
+            entry_date,
+            recorded_total,
+            recorded_severity,
+            row[13],
+            row[14],
+            row[15],
+            row[16],
+            row[17],
+        )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO questionnaire_submissions (
+                questionnaire_id, definition_version, entry_date, total_score, severity,
+                notes, note_tag, source, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            submission_values,
+        )
+        submission = conn.execute(
+            """
+            SELECT
+                id, questionnaire_id, definition_version, entry_date, total_score, severity,
+                notes, note_tag, source, created_at, updated_at
+            FROM questionnaire_submissions
+            WHERE questionnaire_id = ? AND entry_date = ?
+            """,
+            (questionnaire_id, entry_date),
+        ).fetchone()
+        if submission is None or submission[1:] != submission_values:
+            raise RuntimeError(f"Normalized submission does not reconcile: {questionnaire_id} {entry_date}")
+
+        expected_responses = []
+        for response_order, (question, response) in enumerate(zip(definition.items, responses), start=1):
+            options = [option for option in question.options if option.value == response]
+            if len(options) != 1:
+                raise RuntimeError(f"Legacy response is not in its definition: {question.question_id} {entry_date}")
+            response_values = (
+                submission[0],
+                question.question_id,
+                response_order,
+                json.dumps(response, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+                options[0].score,
+            )
+            expected_responses.append(response_values[1:])
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO questionnaire_responses (
+                    submission_id, question_id, response_order, response_value_json, response_score
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                response_values,
+            )
+
+        stored_responses = conn.execute(
+            """
+            SELECT question_id, response_order, response_value_json, response_score
+            FROM questionnaire_responses
+            WHERE submission_id = ?
+            ORDER BY response_order
+            """,
+            (submission[0],),
+        ).fetchall()
+        if stored_responses != expected_responses:
+            raise RuntimeError(f"Normalized responses do not reconcile: {questionnaire_id} {entry_date}")
+
+
+def apply_schema_migrations(
+    conn: sqlite3.Connection,
+    migrations: tuple[SchemaMigration, ...] = SCHEMA_MIGRATIONS,
+    definitions: tuple[QuestionnaireDefinition, ...] | None = None,
+) -> None:
+    """Apply known migrations and exact definition snapshots as one transaction."""
+    if conn.in_transaction:
+        raise RuntimeError("Schema migrations require a connection without an active transaction.")
+    definitions = tuple(QUESTIONNAIRES.values()) if definitions is None else definitions
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        for statement in SCHEMA_MIGRATION_LEDGER_STATEMENTS:
+            conn.execute(statement)
+
+        known_migration_ids = {migration.migration_id for migration in migrations}
+        recorded_rows = conn.execute(
+            "SELECT migration_id, application_id, checksum_sha256 FROM schema_migrations"
+        ).fetchall()
+        unknown_ids = sorted(row[0] for row in recorded_rows if row[0] not in known_migration_ids)
+        if unknown_ids:
+            raise RuntimeError(f"Database contains an unsupported schema migration: {unknown_ids[0]}")
+
+        recorded = {row[0]: (row[1], row[2]) for row in recorded_rows}
+        for migration in migrations:
+            existing = recorded.get(migration.migration_id)
+            if existing is not None:
+                if existing != ("len", migration.checksum):
+                    raise RuntimeError(f"Schema migration checksum mismatch: {migration.migration_id}")
+                continue
+            for statement in migration.statements:
+                conn.execute(statement)
+            conn.execute(
+                """
+                INSERT INTO schema_migrations (migration_id, application_id, checksum_sha256)
+                VALUES (?, 'len', ?)
+                """,
+                (migration.migration_id, migration.checksum),
+            )
+
+        if QUESTIONNAIRE_SNAPSHOT_MIGRATION.migration_id in known_migration_ids:
+            _store_questionnaire_definition_snapshots(conn, definitions)
+        if NORMALIZED_QUESTIONNAIRE_STORAGE_MIGRATION.migration_id in known_migration_ids:
+            _backfill_normalized_questionnaire_entries(conn)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def load_questionnaire_definition_snapshot(
+    questionnaire_id: str,
+    definition_version: int,
+    db_path: Path | None = None,
+) -> QuestionnaireDefinition:
+    """Load and verify the immutable definition needed to interpret historical data."""
+    with closing(sqlite3.connect(db_path or DB_PATH)) as conn:
+        row = conn.execute(
+            """
+            SELECT definition_json, definition_sha256
+            FROM questionnaire_definition_snapshots
+            WHERE questionnaire_id = ? AND definition_version = ?
+            """,
+            (questionnaire_id, definition_version),
+        ).fetchone()
+    if row is None:
+        raise KeyError(f"No questionnaire definition snapshot for {questionnaire_id} v{definition_version}.")
+    payload, recorded_hash = row
+    actual_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    if actual_hash != recorded_hash:
+        raise RuntimeError(f"Questionnaire definition snapshot hash mismatch for {questionnaire_id} v{definition_version}.")
+    definition = deserialize_questionnaire_definition(payload)
+    if (definition.questionnaire_id, definition.definition_version) != (questionnaire_id, definition_version):
+        raise RuntimeError(f"Questionnaire definition snapshot identity mismatch for {questionnaire_id} v{definition_version}.")
+    return definition
 
 
 def normalize_questionnaire_selection(questionnaire_ids=None) -> list[str]:
@@ -257,6 +950,91 @@ def normalize_questionnaire_selection(questionnaire_ids=None) -> list[str]:
     if not selected:
         raise ValueError("Select at least one questionnaire.")
     return list(dict.fromkeys(selected))
+
+
+def normalize_report_date_range(start: str, end: str) -> tuple[str, str]:
+    """Validate and normalize the report range before questionnaire selection."""
+    try:
+        start_date = datetime.strptime(start, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end, "%Y-%m-%d").date()
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Enter report dates as YYYY-MM-DD.") from exc
+    if start_date > end_date:
+        raise ValueError("The report start date must be on or before the end date.")
+    return start_date.isoformat(), end_date.isoformat()
+
+
+def eligible_report_questionnaires(start: str, end: str) -> list[str]:
+    """Return registry questionnaires that have records in the validated range."""
+    start, end = normalize_report_date_range(start, end)
+    return [
+        questionnaire_id
+        for questionnaire_id in QUESTIONNAIRE_ORDER
+        if fetch_assessment_entries(questionnaire_id, start, end)
+    ]
+
+
+def resolve_scoring_strategy(definition: QuestionnaireDefinition) -> ScoringStrategyDescriptor:
+    """Resolve a definition's data-only ID to an application-owned descriptor."""
+    try:
+        return SCORING_STRATEGY_DESCRIPTORS[definition.scoring_rule]
+    except KeyError as exc:
+        raise ValueError(f"Unknown scoring rule: {definition.scoring_rule}") from exc
+
+
+def resolve_profile_strategy(definition: QuestionnaireDefinition) -> ProfileStrategyDescriptor:
+    """Resolve a definition's data-only ID to an application-owned descriptor."""
+    try:
+        return PROFILE_STRATEGY_DESCRIPTORS[definition.profile_rule]
+    except KeyError as exc:
+        raise ValueError(f"Unknown profile rule: {definition.profile_rule}") from exc
+
+
+def calculate_questionnaire_total(
+    definition: QuestionnaireDefinition,
+    responses: list[str | int | None] | tuple[str | int | None, ...],
+) -> int | float | None:
+    """Calculate a deterministic total without executing definition-provided logic."""
+    validate_questionnaire_definition(definition)
+    strategy = resolve_scoring_strategy(definition)
+    if strategy.implementation_id == "no_total":
+        return None
+    if strategy.implementation_id != "sum_option_scores_v1":
+        raise ValueError(f"Scoring strategy is not implemented: {strategy.strategy_id}")
+    if len(responses) != definition.item_count:
+        raise ValueError(f"{definition.display_name} requires {definition.item_count} responses.")
+
+    scores: list[int | float] = []
+    for item, response in zip(definition.items, responses):
+        matching_options = [option for option in item.options if option.value == response]
+        if len(matching_options) != 1 or matching_options[0].score is None:
+            raise ValueError(f"Unsupported response for {item.question_id}: {response!r}")
+        scores.append(matching_options[0].score)
+    return sum(scores)
+
+
+def questionnaire_response_display(option: ResponseOption) -> str:
+    return f"{option.label} [{option.value}]"
+
+
+def questionnaire_response_choices(question: QuestionDefinition) -> tuple[str, ...]:
+    return (UNANSWERED_RESPONSE, *(questionnaire_response_display(option) for option in question.options))
+
+
+def parse_questionnaire_response(question: QuestionDefinition, displayed_value: str) -> str | int | None:
+    if displayed_value == UNANSWERED_RESPONSE:
+        return None
+    for option in question.options:
+        if displayed_value == questionnaire_response_display(option):
+            return option.value
+    raise ValueError(f"Unknown response for {question.question_id}.")
+
+
+def display_questionnaire_response(question: QuestionDefinition, response: str | int) -> str:
+    for option in question.options:
+        if option.value == response:
+            return questionnaire_response_display(option)
+    raise ValueError(f"Unknown response for {question.question_id}.")
 
 
 def questionnaire_completion_status(entry_date: str) -> dict[str, str]:
@@ -287,6 +1065,7 @@ class AssessmentEntryRow:
     severity: str
     notes: str
     note_tag: str = ""
+    definition_version: int | None = None
 
 
 @dataclass
@@ -318,6 +1097,18 @@ class PeriodComparison:
     @property
     def has_comparable_data(self) -> bool:
         return self.current.entries_included > 0 and self.previous.entries_included > 0
+
+
+@dataclass(frozen=True)
+class QuestionnaireTrendSeries:
+    """One definition-version-specific total-score series for neutral charting."""
+
+    definition: QuestionnaireDefinition
+    entries: tuple[AssessmentEntryRow, ...]
+
+    @property
+    def label(self) -> str:
+        return f"{self.definition.display_name} v{self.definition.definition_version}"
 
 
 @dataclass(frozen=True)
@@ -400,6 +1191,81 @@ def convert_14_day_count_to_item_score(days_present: int) -> int:
     return 3
 
 
+def _require_symptom_presence_profile(definition: QuestionnaireDefinition) -> ProfileStrategyDescriptor:
+    validate_questionnaire_definition(definition)
+    strategy = resolve_profile_strategy(definition)
+    if strategy.implementation_id != "symptom_presence_thresholds_14d_v1":
+        raise ValueError(f"Profile strategy is not implemented for 14-day scoring: {strategy.strategy_id}")
+    return strategy
+
+
+def _profile_response_score(question: QuestionDefinition, response: object) -> int | float:
+    matches = [option for option in question.options if option.value == response]
+    if len(matches) != 1:
+        raise ValueError(f"Unsupported response for {question.question_id}: {response!r}")
+    score = matches[0].score
+    if score is None:
+        raise ValueError(f"Profile strategy requires numeric option scores: {question.question_id}")
+    return score
+
+
+def _profile_response_is_present(question: QuestionDefinition, response: object) -> bool:
+    return _profile_response_score(question, response) > 0
+
+
+def _calculate_symptom_presence_profile(
+    definition: QuestionnaireDefinition,
+    entries: list[EntryRow | AssessmentEntryRow],
+    window_start: str,
+    window_end: str,
+    item_count: int | None = None,
+) -> FourteenDayScore:
+    _require_symptom_presence_profile(definition)
+    start_dt = datetime.fromisoformat(window_start).date()
+    end_dt = datetime.fromisoformat(window_end).date()
+    if end_dt < start_dt:
+        raise ValueError("Window end date must not be before its start date.")
+    window_entries = [
+        row
+        for row in entries
+        if start_dt <= datetime.fromisoformat(row.entry_date).date() <= end_dt
+    ]
+    resolved_item_count = definition.item_count if item_count is None else item_count
+    item_counts = [
+        sum(
+            1
+            for row in window_entries
+            if idx < len(row.items) and _profile_response_is_present(definition.items[idx], row.items[idx])
+        )
+        for idx in range(resolved_item_count)
+    ]
+    item_scores = [convert_14_day_count_to_item_score(count) for count in item_counts]
+    total_score = sum(item_scores)
+    severity = ""
+    if definition.interpretation_policy == "validated_builtin":
+        severity = severity_for_assessment(definition.questionnaire_id, total_score)
+    return FourteenDayScore(
+        item_counts=item_counts,
+        item_scores=item_scores,
+        total_score=total_score,
+        severity=severity,
+        start_date=window_start,
+        end_date=window_end,
+        entries_included=len(window_entries),
+        calendar_days=(end_dt - start_dt).days + 1,
+    )
+
+
+def calculate_questionnaire_profile_for_window(
+    definition: QuestionnaireDefinition,
+    entries: list[EntryRow | AssessmentEntryRow],
+    window_start: str,
+    window_end: str,
+) -> FourteenDayScore:
+    """Resolve and execute the application-owned profile strategy for a definition."""
+    return _calculate_symptom_presence_profile(definition, entries, window_start, window_end)
+
+
 def calculate_14_day_symptom_frequency_score(
     entries: list[EntryRow | AssessmentEntryRow],
     item_count: int | None = None,
@@ -413,7 +1279,9 @@ def calculate_14_day_symptom_frequency_score(
     symptom-present day for the count, and entries_included reports how many
     actual entry rows were available in the window.
     """
-    item_count = item_count or (len(entries[0].items) if entries else ASSESSMENTS[assessment_id].item_count)
+    definition = ASSESSMENTS[assessment_id]
+    _require_symptom_presence_profile(definition)
+    item_count = item_count or (len(entries[0].items) if entries else definition.item_count)
     if not entries:
         return FourteenDayScore(
             [0] * item_count,
@@ -427,24 +1295,12 @@ def calculate_14_day_symptom_frequency_score(
     sorted_entries = sorted(entries, key=lambda row: row.entry_date)
     end_dt = datetime.fromisoformat(sorted_entries[-1].entry_date).date()
     start_dt = end_dt - timedelta(days=13)
-    window_entries = [
-        row
-        for row in sorted_entries
-        if start_dt <= datetime.fromisoformat(row.entry_date).date() <= end_dt
-    ]
-    item_counts = []
-    for idx in range(item_count):
-        item_counts.append(sum(1 for row in window_entries if idx < len(row.items) and row.items[idx] > 0))
-    item_scores = [convert_14_day_count_to_item_score(count) for count in item_counts]
-    total_score = sum(item_scores)
-    return FourteenDayScore(
-        item_counts=item_counts,
-        item_scores=item_scores,
-        total_score=total_score,
-        severity=severity_for_assessment(assessment_id, total_score),
-        start_date=start_dt.isoformat(),
-        end_date=end_dt.isoformat(),
-        entries_included=len(window_entries),
+    return _calculate_symptom_presence_profile(
+        definition,
+        sorted_entries,
+        start_dt.isoformat(),
+        end_dt.isoformat(),
+        item_count,
     )
 
 
@@ -456,31 +1312,94 @@ def calculate_symptom_frequency_score_for_window(
     assessment_id: str,
 ) -> FourteenDayScore:
     """Calculate a symptom-frequency score for an explicit calendar window."""
-    start_dt = datetime.fromisoformat(window_start).date()
-    end_dt = datetime.fromisoformat(window_end).date()
-    if end_dt < start_dt:
-        raise ValueError("Window end date must not be before its start date.")
-    window_entries = [
-        row
-        for row in entries
-        if start_dt <= datetime.fromisoformat(row.entry_date).date() <= end_dt
-    ]
-    item_counts = [
-        sum(1 for row in window_entries if idx < len(row.items) and row.items[idx] > 0)
-        for idx in range(item_count)
-    ]
-    item_scores = [convert_14_day_count_to_item_score(count) for count in item_counts]
-    total_score = sum(item_scores)
-    return FourteenDayScore(
-        item_counts=item_counts,
-        item_scores=item_scores,
-        total_score=total_score,
-        severity=severity_for_assessment(assessment_id, total_score),
-        start_date=window_start,
-        end_date=window_end,
-        entries_included=len(window_entries),
-        calendar_days=(end_dt - start_dt).days + 1,
+    return _calculate_symptom_presence_profile(
+        ASSESSMENTS[assessment_id],
+        entries,
+        window_start,
+        window_end,
+        item_count,
     )
+
+
+def questionnaire_total_trend_omission_reason(definition: QuestionnaireDefinition) -> str | None:
+    """Return why a definition cannot produce a total-score trend, or None."""
+    validate_questionnaire_definition(definition)
+    strategy = resolve_scoring_strategy(definition)
+    if strategy.implementation_id == "no_total":
+        return f"{definition.display_name} does not define a total score, so no total-score trend is shown."
+    if strategy.implementation_id != "sum_option_scores_v1":
+        return f"{definition.display_name} does not have an implemented total-score trend capability."
+    if definition.score_min is None or definition.score_max is None or definition.score_max <= definition.score_min:
+        return f"{definition.display_name} does not declare usable score bounds for a total-score trend."
+    return None
+
+
+def questionnaire_profile_omission_reason(definition: QuestionnaireDefinition) -> str | None:
+    """Return why a definition cannot produce a 14-day item profile, or None."""
+    validate_questionnaire_definition(definition)
+    strategy = resolve_profile_strategy(definition)
+    if strategy.implementation_id == "no_profile":
+        return f"{definition.display_name} does not define a 14-day item profile."
+    if strategy.implementation_id != "symptom_presence_thresholds_14d_v1":
+        return f"{definition.display_name} does not have an implemented 14-day item profile capability."
+    return None
+
+
+def _definition_groups_for_entries(
+    questionnaire_id: str,
+    entries: list[AssessmentEntryRow],
+) -> list[tuple[QuestionnaireDefinition, list[AssessmentEntryRow]]]:
+    """Group rows by their immutable definition without blending versions."""
+    current_definition = QUESTIONNAIRES[questionnaire_id]
+    grouped: dict[int, list[AssessmentEntryRow]] = {}
+    definitions: dict[int, QuestionnaireDefinition] = {}
+    for entry in entries:
+        if entry.assessment_id != questionnaire_id:
+            raise ValueError(f"Entry questionnaire does not match {questionnaire_id}: {entry.assessment_id}")
+        version = entry.definition_version or current_definition.definition_version
+        grouped.setdefault(version, []).append(entry)
+        if version not in definitions:
+            definitions[version] = (
+                current_definition
+                if version == current_definition.definition_version
+                else load_questionnaire_definition_snapshot(questionnaire_id, version)
+            )
+    if not grouped:
+        return [(current_definition, [])]
+    return [(definitions[version], grouped[version]) for version in sorted(grouped)]
+
+
+def build_questionnaire_trend_series(
+    questionnaire_id: str,
+    entries: list[AssessmentEntryRow] | None = None,
+) -> list[QuestionnaireTrendSeries]:
+    """Build version-separated neutral total-score series when explicitly supported."""
+    if questionnaire_id not in QUESTIONNAIRES:
+        raise ValueError(f"Unknown questionnaire: {questionnaire_id}")
+    resolved_entries = fetch_assessment_entries(questionnaire_id) if entries is None else entries
+    series = []
+    for definition, definition_entries in _definition_groups_for_entries(questionnaire_id, resolved_entries):
+        if questionnaire_total_trend_omission_reason(definition) is None:
+            series.append(QuestionnaireTrendSeries(definition, tuple(definition_entries)))
+    return series
+
+
+def _latest_definition_group(
+    questionnaire_id: str,
+    entries: list[AssessmentEntryRow],
+    end_date: str,
+) -> tuple[QuestionnaireDefinition, list[AssessmentEntryRow], bool]:
+    """Select one version for comparison so unlike definitions are never blended."""
+    groups = _definition_groups_for_entries(questionnaire_id, entries)
+    eligible = [
+        (definition, [entry for entry in group_entries if entry.entry_date <= end_date])
+        for definition, group_entries in groups
+    ]
+    eligible = [(definition, group_entries) for definition, group_entries in eligible if group_entries]
+    if not eligible:
+        return QUESTIONNAIRES[questionnaire_id], [], len(groups) > 1
+    definition, group_entries = max(eligible, key=lambda item: max(entry.entry_date for entry in item[1]))
+    return definition, group_entries, len(groups) > 1
 
 
 def build_14_day_item_profile(end_date: str, questionnaire_ids=None) -> list[dict[str, object]]:
@@ -489,31 +1408,36 @@ def build_14_day_item_profile(end_date: str, questionnaire_ids=None) -> list[dic
     window_start = (window_end - timedelta(days=13)).isoformat()
     records: list[dict[str, object]] = []
     for assessment_id in normalize_questionnaire_selection(questionnaire_ids):
-        definition = ASSESSMENTS[assessment_id]
         entries = fetch_assessment_entries(assessment_id, window_start, end_date)
-        score = calculate_symptom_frequency_score_for_window(
-            entries,
-            window_start,
-            end_date,
-            definition.item_count,
-            assessment_id,
-        )
-        for item_index, item_label in enumerate(definition.item_labels):
-            records.append(
-                {
-                    "profile_record_id": f"profile:{end_date}:{assessment_id}:item:{item_index + 1}",
-                    "window_start": window_start,
-                    "window_end": end_date,
-                    "assessment_id": assessment_id,
-                    "assessment_name": definition.display_name,
-                    "item_number": item_index + 1,
-                    "item_label": item_label,
-                    "symptom_present_days": score.item_counts[item_index],
-                    "recorded_day_coverage": score.entries_included,
-                    "calendar_days": score.calendar_days,
-                    "frequency_score": score.item_scores[item_index],
-                }
+        definition_groups = _definition_groups_for_entries(assessment_id, entries)
+        multiple_versions = len(definition_groups) > 1
+        for definition, definition_entries in definition_groups:
+            if questionnaire_profile_omission_reason(definition) is not None:
+                continue
+            score = calculate_questionnaire_profile_for_window(
+                definition,
+                definition_entries,
+                window_start,
+                end_date,
             )
+            version_component = f":v{definition.definition_version}" if multiple_versions else ""
+            for item_index, item_label in enumerate(definition.item_labels):
+                records.append(
+                    {
+                        "profile_record_id": f"profile:{end_date}:{assessment_id}{version_component}:item:{item_index + 1}",
+                        "window_start": window_start,
+                        "window_end": end_date,
+                        "assessment_id": assessment_id,
+                        "assessment_name": definition.display_name,
+                        "definition_version": definition.definition_version,
+                        "item_number": item_index + 1,
+                        "item_label": item_label,
+                        "symptom_present_days": score.item_counts[item_index],
+                        "recorded_day_coverage": score.entries_included,
+                        "calendar_days": score.calendar_days,
+                        "frequency_score": score.item_scores[item_index],
+                    }
+                )
     return records
 
 
@@ -521,18 +1445,19 @@ def compare_recent_14_day_periods(
     entries: list[EntryRow | AssessmentEntryRow],
     assessment_id: str,
     end_date: str,
+    definition: QuestionnaireDefinition | None = None,
 ) -> PeriodComparison:
     """Compare the latest 14 calendar days with the immediately prior 14 days."""
-    definition = ASSESSMENTS[assessment_id]
+    definition = definition or ASSESSMENTS[assessment_id]
     current_end = datetime.fromisoformat(end_date).date()
     current_start = current_end - timedelta(days=13)
     previous_end = current_start - timedelta(days=1)
     previous_start = previous_end - timedelta(days=13)
-    current = calculate_symptom_frequency_score_for_window(
-        entries, current_start.isoformat(), current_end.isoformat(), definition.item_count, assessment_id
+    current = calculate_questionnaire_profile_for_window(
+        definition, entries, current_start.isoformat(), current_end.isoformat()
     )
-    previous = calculate_symptom_frequency_score_for_window(
-        entries, previous_start.isoformat(), previous_end.isoformat(), definition.item_count, assessment_id
+    previous = calculate_questionnaire_profile_for_window(
+        definition, entries, previous_start.isoformat(), previous_end.isoformat()
     )
     return PeriodComparison(
         assessment_id=assessment_id,
@@ -701,15 +1626,20 @@ def overall_pattern_summary(
     gad_entries: list[AssessmentEntryRow],
     end_date: str,
     questionnaire_ids=None,
+    entry_sets: dict[str, list[AssessmentEntryRow]] | None = None,
 ) -> str:
     """Describe adjacent 14-day patterns without diagnosis or causal language."""
     phrases = []
     coverage = []
-    entry_sets = {"phq9": phq_entries, "gad7": gad_entries}
+    entry_sets = entry_sets or {"phq9": phq_entries, "gad7": gad_entries}
     for assessment_id in normalize_questionnaire_selection(questionnaire_ids):
-        entries = entry_sets[assessment_id]
-        comparison = compare_recent_14_day_periods(entries, assessment_id, end_date)
-        label = ASSESSMENTS[assessment_id].display_name
+        definition, entries, has_multiple_versions = _latest_definition_group(
+            assessment_id, entry_sets[assessment_id], end_date
+        )
+        comparison = compare_recent_14_day_periods(entries, assessment_id, end_date, definition)
+        label = definition.display_name
+        if has_multiple_versions:
+            label = f"{label} v{definition.definition_version}"
         coverage.append(f"{label} {comparison.current.entries_included}/14")
         if not comparison.has_comparable_data:
             phrases.append(f"{label} does not yet have recorded check-ins in both comparison periods")
@@ -729,21 +1659,24 @@ def symptom_highlights(
     limit: int = 2,
 ) -> list[str]:
     """Return the largest recorded item-frequency changes using neutral wording."""
-    definition = ASSESSMENTS[assessment_id]
-    comparison = compare_recent_14_day_periods(entries, assessment_id, end_date)
+    definition, entries, has_multiple_versions = _latest_definition_group(assessment_id, entries, end_date)
+    comparison = compare_recent_14_day_periods(entries, assessment_id, end_date, definition)
+    display_name = definition.display_name
+    if has_multiple_versions:
+        display_name = f"{display_name} v{definition.definition_version}"
     current_entries = entries_for_window(entries, comparison.current_start, comparison.current_end)
     previous_entries = entries_for_window(entries, comparison.previous_start, comparison.previous_end)
     if not current_entries:
-        return [f"No {definition.display_name} check-ins were recorded in the current 14-day period."]
+        return [f"No {display_name} check-ins were recorded in the current 14-day period."]
 
     current_counts = [sum(row.items[idx] > 0 for row in current_entries) for idx in range(definition.item_count)]
     if not previous_entries:
         ranked = sorted(range(definition.item_count), key=lambda idx: (-current_counts[idx], idx))
         return [
-            f"Responses related to {definition.item_labels[idx].lower()} were recorded on {current_counts[idx]} of {len(current_entries)} {definition.display_name} check-ins in this period."
+            f"Responses related to {definition.item_labels[idx].lower()} were recorded on {current_counts[idx]} of {len(current_entries)} {display_name} check-ins in this period."
             for idx in ranked[:limit]
             if current_counts[idx] > 0
-        ] or [f"No {definition.display_name} symptoms were recorded as present in the current period."]
+        ] or [f"No {display_name} symptoms were recorded as present in the current period."]
 
     previous_counts = [sum(row.items[idx] > 0 for row in previous_entries) for idx in range(definition.item_count)]
     ranked = sorted(
@@ -761,7 +1694,7 @@ def symptom_highlights(
         )
         if len(highlights) == limit:
             break
-    return highlights or [f"Recorded {definition.display_name} symptom frequencies were similar across the two periods."]
+    return highlights or [f"Recorded {display_name} symptom frequencies were similar across the two periods."]
 
 
 def treatment_cycles(
@@ -817,7 +1750,7 @@ def parse_date(value) -> str | None:
 def init_db(db_path: Path | None = None) -> None:
     db_path = db_path or DB_PATH
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    with closing(sqlite3.connect(db_path)) as conn, conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS phq9_entries (
@@ -894,6 +1827,114 @@ def init_db(db_path: Path | None = None) -> None:
             """
         )
         conn.commit()
+        apply_schema_migrations(conn)
+
+
+def _write_normalized_submission(
+    conn: sqlite3.Connection,
+    definition: QuestionnaireDefinition,
+    entry_date: str,
+    items: list[int],
+) -> None:
+    legacy = conn.execute(
+        """
+        SELECT total, severity, notes, note_tag, source, created_at, updated_at
+        FROM assessment_entries
+        WHERE assessment_id = ? AND entry_date = ?
+        """,
+        (definition.questionnaire_id, entry_date),
+    ).fetchone()
+    if legacy is None:
+        raise RuntimeError(f"Compatibility row is missing for {definition.questionnaire_id} {entry_date}.")
+    conn.execute(
+        """
+        INSERT INTO questionnaire_submissions (
+            questionnaire_id, definition_version, entry_date, total_score, severity,
+            notes, note_tag, source, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(questionnaire_id, entry_date) DO UPDATE SET
+            definition_version=excluded.definition_version,
+            total_score=excluded.total_score,
+            severity=excluded.severity,
+            notes=excluded.notes,
+            note_tag=excluded.note_tag,
+            source=excluded.source,
+            created_at=excluded.created_at,
+            updated_at=excluded.updated_at
+        """,
+        (definition.questionnaire_id, definition.definition_version, entry_date, *legacy),
+    )
+    submission_id = conn.execute(
+        "SELECT id FROM questionnaire_submissions WHERE questionnaire_id = ? AND entry_date = ?",
+        (definition.questionnaire_id, entry_date),
+    ).fetchone()[0]
+    conn.execute("DELETE FROM questionnaire_responses WHERE submission_id = ?", (submission_id,))
+    for response_order, (question, response) in enumerate(zip(definition.items, items), start=1):
+        option = next((option for option in question.options if option.value == response), None)
+        if option is None:
+            raise ValueError(f"Unsupported response for {question.question_id}: {response!r}")
+        conn.execute(
+            """
+            INSERT INTO questionnaire_responses (
+                submission_id, question_id, response_order, response_value_json, response_score
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                submission_id,
+                question.question_id,
+                response_order,
+                json.dumps(response, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+                option.score,
+            ),
+        )
+
+
+def _upsert_assessment_entry_in_connection(
+    conn: sqlite3.Connection,
+    assessment_id: str,
+    entry_date: str,
+    items: list[int],
+    notes: str,
+    source: str,
+    note_tag: str,
+) -> None:
+    definition = ASSESSMENTS[assessment_id]
+    if len(items) != definition.item_count:
+        raise ValueError(f"{definition.display_name} requires {definition.item_count} items.")
+    if any(score < 0 or score > 3 for score in items):
+        raise ValueError(f"{definition.display_name} item scores must be 0, 1, 2, or 3.")
+    padded_items = [*items, *([None] * (9 - len(items)))]
+    total = calculate_questionnaire_total(definition, items)
+    if total is None:
+        raise ValueError(f"{definition.display_name} does not define a total score.")
+    severity = severity_for_assessment(assessment_id, total)
+    conn.execute(
+        """
+        INSERT INTO assessment_entries (
+            assessment_id, entry_date, item1, item2, item3, item4, item5, item6, item7, item8, item9,
+            total, severity, notes, note_tag, source
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(assessment_id, entry_date) DO UPDATE SET
+            item1=excluded.item1,
+            item2=excluded.item2,
+            item3=excluded.item3,
+            item4=excluded.item4,
+            item5=excluded.item5,
+            item6=excluded.item6,
+            item7=excluded.item7,
+            item8=excluded.item8,
+            item9=excluded.item9,
+            total=excluded.total,
+            severity=excluded.severity,
+            notes=CASE WHEN excluded.notes != '' THEN excluded.notes ELSE assessment_entries.notes END,
+            note_tag=CASE WHEN excluded.note_tag != '' THEN excluded.note_tag ELSE assessment_entries.note_tag END,
+            source=excluded.source,
+            updated_at=CURRENT_TIMESTAMP
+        """,
+        (assessment_id, entry_date, *padded_items, total, severity, notes or "", note_tag or "", source),
+    )
+    _write_normalized_submission(conn, definition, entry_date, items)
 
 
 def upsert_assessment_entry(
@@ -904,88 +1945,90 @@ def upsert_assessment_entry(
     source: str = "manual",
     note_tag: str = "",
 ) -> None:
-    definition = ASSESSMENTS[assessment_id]
-    if len(items) != definition.item_count:
-        raise ValueError(f"{definition.display_name} requires {definition.item_count} items.")
-    if any(score < 0 or score > 3 for score in items):
-        raise ValueError(f"{definition.display_name} item scores must be 0, 1, 2, or 3.")
-    padded_items = [*items, *([None] * (9 - len(items)))]
-    total = sum(items)
-    severity = severity_for_assessment(assessment_id, total)
     with closing(sqlite3.connect(DB_PATH)) as conn, conn:
-        conn.execute(
-            """
-            INSERT INTO assessment_entries (
-                assessment_id, entry_date, item1, item2, item3, item4, item5, item6, item7, item8, item9,
-                total, severity, notes, note_tag, source
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(assessment_id, entry_date) DO UPDATE SET
-                item1=excluded.item1,
-                item2=excluded.item2,
-                item3=excluded.item3,
-                item4=excluded.item4,
-                item5=excluded.item5,
-                item6=excluded.item6,
-                item7=excluded.item7,
-                item8=excluded.item8,
-                item9=excluded.item9,
-                total=excluded.total,
-                severity=excluded.severity,
-                notes=CASE
-                    WHEN excluded.notes != '' THEN excluded.notes
-                    ELSE assessment_entries.notes
-                END,
-                note_tag=CASE
-                    WHEN excluded.note_tag != '' THEN excluded.note_tag
-                    ELSE assessment_entries.note_tag
-                END,
-                source=excluded.source,
-                updated_at=CURRENT_TIMESTAMP
-            """,
-            (assessment_id, entry_date, *padded_items, total, severity, notes or "", note_tag or "", source),
+        conn.execute("PRAGMA foreign_keys = ON")
+        _upsert_assessment_entry_in_connection(conn, assessment_id, entry_date, items, notes, source, note_tag)
+
+
+def _upsert_phq9_entry_in_connection(
+    conn: sqlite3.Connection,
+    entry_date: str,
+    items: list[int],
+    notes: str,
+    source: str,
+    note_tag: str,
+) -> None:
+    total = calculate_questionnaire_total(QUESTIONNAIRES["phq9"], items)
+    if total is None:
+        raise ValueError("PHQ-9 does not define a total score.")
+    severity = severity_for_score(total)
+    conn.execute(
+        """
+        INSERT INTO phq9_entries (
+            entry_date, item1, item2, item3, item4, item5, item6, item7, item8, item9,
+            total, severity, notes, note_tag, source
         )
-        conn.commit()
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(entry_date) DO UPDATE SET
+            item1=excluded.item1,
+            item2=excluded.item2,
+            item3=excluded.item3,
+            item4=excluded.item4,
+            item5=excluded.item5,
+            item6=excluded.item6,
+            item7=excluded.item7,
+            item8=excluded.item8,
+            item9=excluded.item9,
+            total=excluded.total,
+            severity=excluded.severity,
+            notes=CASE WHEN excluded.notes != '' THEN excluded.notes ELSE phq9_entries.notes END,
+            note_tag=CASE WHEN excluded.note_tag != '' THEN excluded.note_tag ELSE phq9_entries.note_tag END,
+            source=excluded.source,
+            updated_at=CURRENT_TIMESTAMP
+        """,
+        (entry_date, *items, total, severity, notes or "", note_tag or "", source),
+    )
+
+
+def upsert_questionnaire_entries(
+    entry_date: str,
+    responses_by_questionnaire: dict[str, list[int]],
+    notes: str = "",
+    source: str = "manual",
+    note_tag: str = "",
+) -> None:
+    if not responses_by_questionnaire:
+        raise ValueError("Select at least one questionnaire to record.")
+    unknown = set(responses_by_questionnaire) - set(QUESTIONNAIRES)
+    if unknown:
+        raise ValueError(f"Unknown questionnaire: {sorted(unknown)[0]}")
+    with closing(sqlite3.connect(DB_PATH)) as conn, conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        for questionnaire_id in QUESTIONNAIRE_ORDER:
+            if questionnaire_id not in responses_by_questionnaire:
+                continue
+            items = responses_by_questionnaire[questionnaire_id]
+            if questionnaire_id == "phq9":
+                _upsert_phq9_entry_in_connection(conn, entry_date, items, notes, source, note_tag)
+            _upsert_assessment_entry_in_connection(
+                conn,
+                questionnaire_id,
+                entry_date,
+                items,
+                notes,
+                source,
+                note_tag,
+            )
 
 
 def upsert_entry(entry_date: str, items: list[int], notes: str = "", source: str = "manual", note_tag: str = "") -> None:
-    total = sum(items)
-    severity = severity_for_score(total)
-    with closing(sqlite3.connect(DB_PATH)) as conn, conn:
-        conn.execute(
-            """
-            INSERT INTO phq9_entries (
-                entry_date, item1, item2, item3, item4, item5, item6, item7, item8, item9,
-                total, severity, notes, note_tag, source
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(entry_date) DO UPDATE SET
-                item1=excluded.item1,
-                item2=excluded.item2,
-                item3=excluded.item3,
-                item4=excluded.item4,
-                item5=excluded.item5,
-                item6=excluded.item6,
-                item7=excluded.item7,
-                item8=excluded.item8,
-                item9=excluded.item9,
-                total=excluded.total,
-                severity=excluded.severity,
-                notes=CASE
-                    WHEN excluded.notes != '' THEN excluded.notes
-                    ELSE phq9_entries.notes
-                END,
-                note_tag=CASE
-                    WHEN excluded.note_tag != '' THEN excluded.note_tag
-                    ELSE phq9_entries.note_tag
-                END,
-                source=excluded.source,
-                updated_at=CURRENT_TIMESTAMP
-            """,
-            (entry_date, *items, total, severity, notes or "", note_tag or "", source),
-        )
-        conn.commit()
-    upsert_assessment_entry("phq9", entry_date, items, notes=notes, source=source, note_tag=note_tag)
+    upsert_questionnaire_entries(
+        entry_date,
+        {"phq9": items},
+        notes=notes,
+        source=source,
+        note_tag=note_tag,
+    )
 
 
 def fetch_assessment_entries(
@@ -994,7 +2037,139 @@ def fetch_assessment_entries(
     end: str | None = None,
     limit: int | None = None,
 ) -> list[AssessmentEntryRow]:
+    """Prefer verified normalized records, with a fallback for unmigrated databases."""
     definition = ASSESSMENTS[assessment_id]
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        has_normalized_storage = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM sqlite_master
+            WHERE type = 'table' AND name IN ('questionnaire_submissions', 'questionnaire_responses')
+            """
+        ).fetchone()[0] == 2
+        if has_normalized_storage:
+            normalized_rows = _fetch_normalized_assessment_entries(conn, assessment_id, start, end, None)
+            legacy_rows = _fetch_legacy_assessment_entries(assessment_id, definition, start, end, None)
+            normalized_dates = {row.entry_date for row in normalized_rows}
+            rows = sorted(
+                [*normalized_rows, *(row for row in legacy_rows if row.entry_date not in normalized_dates)],
+                key=lambda row: row.entry_date,
+            )
+            return rows[: int(limit)] if limit else rows
+    return _fetch_legacy_assessment_entries(assessment_id, definition, start, end, limit)
+
+
+def _fetch_normalized_assessment_entries(
+    conn: sqlite3.Connection,
+    questionnaire_id: str,
+    start: str | None,
+    end: str | None,
+    limit: int | None,
+) -> list[AssessmentEntryRow]:
+    clauses = ["submission.questionnaire_id = ?"]
+    params: list[object] = [questionnaire_id]
+    if start:
+        clauses.append("submission.entry_date >= ?")
+        params.append(start)
+    if end:
+        clauses.append("submission.entry_date <= ?")
+        params.append(end)
+    limit_sql = f"LIMIT {int(limit)}" if limit else ""
+    submissions = conn.execute(
+        f"""
+        SELECT
+            submission.id, legacy.id, submission.questionnaire_id, submission.definition_version,
+            submission.entry_date, submission.total_score, submission.severity,
+            COALESCE(submission.notes, ''), COALESCE(submission.note_tag, ''),
+            snapshot.definition_json, snapshot.definition_sha256
+        FROM questionnaire_submissions AS submission
+        JOIN questionnaire_definition_snapshots AS snapshot
+          ON snapshot.questionnaire_id = submission.questionnaire_id
+         AND snapshot.definition_version = submission.definition_version
+        LEFT JOIN assessment_entries AS legacy
+          ON legacy.assessment_id = submission.questionnaire_id
+         AND legacy.entry_date = submission.entry_date
+        WHERE {" AND ".join(clauses)}
+        ORDER BY submission.entry_date ASC
+        {limit_sql}
+        """,
+        params,
+    ).fetchall()
+
+    results = []
+    for submission in submissions:
+        submission_id, legacy_id = submission[0], submission[1]
+        if legacy_id is None:
+            raise RuntimeError(
+                f"Normalized submission is missing its compatibility row: {questionnaire_id} {submission[4]}"
+            )
+        payload, recorded_hash = submission[9], submission[10]
+        if hashlib.sha256(payload.encode("utf-8")).hexdigest() != recorded_hash:
+            raise RuntimeError(
+                f"Questionnaire definition snapshot hash mismatch for {questionnaire_id} v{submission[3]}."
+            )
+        snapshot = deserialize_questionnaire_definition(payload)
+        if (snapshot.questionnaire_id, snapshot.definition_version) != (questionnaire_id, submission[3]):
+            raise RuntimeError(
+                f"Questionnaire definition snapshot identity mismatch for {questionnaire_id} v{submission[3]}."
+            )
+        response_rows = conn.execute(
+            """
+            SELECT question_id, response_order, response_value_json, response_score
+            FROM questionnaire_responses
+            WHERE submission_id = ?
+            ORDER BY response_order
+            """,
+            (submission_id,),
+        ).fetchall()
+        if len(response_rows) != snapshot.item_count:
+            raise RuntimeError(f"Normalized response count does not reconcile: {questionnaire_id} {submission[4]}")
+
+        responses = []
+        for response_order, (question, response_row) in enumerate(zip(snapshot.items, response_rows), start=1):
+            if (response_row[0], response_row[1]) != (question.question_id, response_order):
+                raise RuntimeError(f"Normalized response identity does not reconcile: {questionnaire_id} {submission[4]}")
+            try:
+                response = json.loads(response_row[2])
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"Normalized response JSON is invalid: {questionnaire_id} {submission[4]}"
+                ) from exc
+            options = [option for option in question.options if option.value == response]
+            if len(options) != 1 or options[0].score != response_row[3]:
+                raise RuntimeError(f"Normalized response does not match its definition: {question.question_id}")
+            responses.append(response)
+
+        calculated_total = calculate_questionnaire_total(snapshot, responses)
+        if calculated_total != submission[5]:
+            raise RuntimeError(f"Normalized total does not reconcile: {questionnaire_id} {submission[4]}")
+        if snapshot.interpretation_policy == "validated_builtin":
+            expected_severity = severity_for_assessment(questionnaire_id, submission[5])
+            if expected_severity != submission[6]:
+                raise RuntimeError(f"Normalized severity does not reconcile: {questionnaire_id} {submission[4]}")
+        results.append(
+            AssessmentEntryRow(
+                id=legacy_id,
+                assessment_id=questionnaire_id,
+                entry_date=submission[4],
+                items=responses,
+                total=submission[5],
+                severity=submission[6],
+                notes=submission[7],
+                note_tag=submission[8],
+                definition_version=submission[3],
+            )
+        )
+    return results
+
+
+def _fetch_legacy_assessment_entries(
+    assessment_id: str,
+    definition: QuestionnaireDefinition,
+    start: str | None,
+    end: str | None,
+    limit: int | None,
+) -> list[AssessmentEntryRow]:
     clauses = ["assessment_id = ?"]
     params = [assessment_id]
     if start:
@@ -1012,7 +2187,7 @@ def fetch_assessment_entries(
         ORDER BY entry_date ASC
         {limit_sql}
     """
-    with closing(sqlite3.connect(DB_PATH)) as conn, conn:
+    with closing(sqlite3.connect(DB_PATH)) as conn:
         rows = conn.execute(sql, params).fetchall()
     return [
         AssessmentEntryRow(
@@ -1134,10 +2309,13 @@ def update_assessment_entry(entry_id: int, assessment_id: str, items: list[int])
     if len(items) != definition.item_count or any(score < 0 or score > 3 for score in items):
         raise ValueError(f"{definition.display_name} requires {definition.item_count} item scores from 0 to 3.")
     padded_items = [*items, *([None] * (9 - len(items)))]
-    total = sum(items)
+    total = calculate_questionnaire_total(definition, items)
+    if total is None:
+        raise ValueError(f"{definition.display_name} does not define a total score.")
     severity = severity_for_assessment(assessment_id, total)
     assignments = ", ".join([*(f"item{i} = ?" for i in range(1, 10)), "total = ?", "severity = ?", "updated_at = CURRENT_TIMESTAMP"])
     with closing(sqlite3.connect(DB_PATH)) as conn, conn:
+        conn.execute("PRAGMA foreign_keys = ON")
         cursor = conn.execute(
             f"UPDATE assessment_entries SET {assignments} WHERE id = ? AND assessment_id = ?",
             (*padded_items, total, severity, entry_id, assessment_id),
@@ -1152,17 +2330,28 @@ def update_assessment_entry(entry_id: int, assessment_id: str, items: list[int])
                     f"UPDATE phq9_entries SET {legacy_assignments} WHERE entry_date = ?",
                     (*items, total, severity, entry_date_row[0]),
                 )
+        entry_date_row = conn.execute(
+            "SELECT entry_date FROM assessment_entries WHERE id = ? AND assessment_id = ?",
+            (entry_id, assessment_id),
+        ).fetchone()
+        if entry_date_row:
+            _write_normalized_submission(conn, definition, entry_date_row[0], items)
 
 
 def update_daily_note(entry_date: str, notes: str, note_tag: str = "") -> None:
     """Synchronize the single day-level note across assessment and legacy rows."""
     with closing(sqlite3.connect(DB_PATH)) as conn, conn:
+        conn.execute("PRAGMA foreign_keys = ON")
         conn.execute(
             "UPDATE assessment_entries SET notes = ?, note_tag = ?, updated_at = CURRENT_TIMESTAMP WHERE entry_date = ?",
             (notes, note_tag, entry_date),
         )
         conn.execute(
             "UPDATE phq9_entries SET notes = ?, note_tag = ?, updated_at = CURRENT_TIMESTAMP WHERE entry_date = ?",
+            (notes, note_tag, entry_date),
+        )
+        conn.execute(
+            "UPDATE questionnaire_submissions SET notes = ?, note_tag = ?, updated_at = CURRENT_TIMESTAMP WHERE entry_date = ?",
             (notes, note_tag, entry_date),
         )
 
@@ -1173,12 +2362,17 @@ def delete_daily_note(entry_date: str) -> None:
 
 def delete_assessment_entry(entry_id: int, assessment_id: str) -> None:
     with closing(sqlite3.connect(DB_PATH)) as conn, conn:
+        conn.execute("PRAGMA foreign_keys = ON")
         row = conn.execute(
             "SELECT entry_date FROM assessment_entries WHERE id = ? AND assessment_id = ?",
             (entry_id, assessment_id),
         ).fetchone()
         if not row:
             return
+        conn.execute(
+            "DELETE FROM questionnaire_submissions WHERE questionnaire_id = ? AND entry_date = ?",
+            (assessment_id, row[0]),
+        )
         conn.execute("DELETE FROM assessment_entries WHERE id = ? AND assessment_id = ?", (entry_id, assessment_id))
         if assessment_id == "phq9":
             conn.execute("DELETE FROM phq9_entries WHERE entry_date = ?", (row[0],))
@@ -1313,7 +2507,7 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
     selected_ids = normalize_questionnaire_selection(questionnaire_ids)
     with closing(sqlite3.connect(DB_PATH)) as conn:
         conn.row_factory = sqlite3.Row
-        assessments = conn.execute(
+        compatibility_rows = conn.execute(
             """
             SELECT id, assessment_id, entry_date, item1, item2, item3, item4, item5,
                    item6, item7, item8, item9, total, severity, COALESCE(notes, '') AS notes,
@@ -1322,7 +2516,7 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
             ORDER BY entry_date, assessment_id, id
             """
         ).fetchall()
-        assessments = [row for row in assessments if row["assessment_id"] in selected_ids]
+        compatibility_rows = [row for row in compatibility_rows if row["assessment_id"] in selected_ids]
         events = conn.execute(
             """
             SELECT id, event_date, event_type, COALESCE(description, '') AS description, created_at
@@ -1331,59 +2525,85 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
             """
         ).fetchall()
 
+    compatibility_by_key = {
+        (row["assessment_id"], row["entry_date"]): row for row in compatibility_rows
+    }
+    assessments = [
+        entry
+        for questionnaire_id in selected_ids
+        for entry in fetch_assessment_entries(questionnaire_id)
+    ]
+    assessments.sort(key=lambda entry: (entry.entry_date, entry.assessment_id, entry.id))
+
     daily_assessments: list[dict[str, object]] = []
     item_responses: list[dict[str, object]] = []
     notes_by_date: dict[str, dict[str, object]] = {}
     assessment_ids_by_date: dict[str, list[str]] = {}
     assessment_summary_by_date: dict[str, dict[str, object]] = {}
 
+    definition_versions: dict[str, set[int]] = {questionnaire_id: set() for questionnaire_id in selected_ids}
     for row in assessments:
-        definition = ASSESSMENTS[row["assessment_id"]]
-        assessment_record_id = f"assessment:{row['id']}"
-        daily_record_id = f"day:{row['entry_date']}"
+        definition_version = row.definition_version or QUESTIONNAIRES[row.assessment_id].definition_version
+        definition = (
+            QUESTIONNAIRES[row.assessment_id]
+            if definition_version == QUESTIONNAIRES[row.assessment_id].definition_version
+            else load_questionnaire_definition_snapshot(row.assessment_id, definition_version)
+        )
+        definition_versions[row.assessment_id].add(definition_version)
+        compatibility = compatibility_by_key[(row.assessment_id, row.entry_date)]
+        assessment_record_id = f"assessment:{row.id}"
+        daily_record_id = f"day:{row.entry_date}"
         daily_assessments.append(
             {
                 "assessment_record_id": assessment_record_id,
-                "assessment_entry_id": row["id"],
+                "assessment_entry_id": row.id,
                 "daily_record_id": daily_record_id,
-                "entry_date": row["entry_date"],
-                "assessment_id": row["assessment_id"],
+                "entry_date": row.entry_date,
+                "assessment_id": row.assessment_id,
                 "assessment_name": definition.display_name,
-                "daily_severity_score": row["total"],
-                "severity_category": row["severity"],
-                "source": row["source"],
-                "created_at": row["created_at"],
-                "updated_at": row["updated_at"],
+                "definition_version": definition_version,
+                "interpretation_policy": definition.interpretation_policy,
+                "daily_severity_score": row.total,
+                "severity_category": row.severity,
+                "source": compatibility["source"],
+                "created_at": compatibility["created_at"],
+                "updated_at": compatibility["updated_at"],
             }
         )
-        assessment_ids_by_date.setdefault(row["entry_date"], []).append(assessment_record_id)
-        assessment_summary_by_date.setdefault(row["entry_date"], {})[f"{row['assessment_id']}_daily_severity_score"] = row["total"]
-        assessment_summary_by_date[row["entry_date"]][f"{row['assessment_id']}_severity_category"] = row["severity"]
-        for item_number, item_label in enumerate(definition.item_labels, start=1):
-            response_value = row[f"item{item_number}"]
+        assessment_ids_by_date.setdefault(row.entry_date, []).append(assessment_record_id)
+        assessment_summary_by_date.setdefault(row.entry_date, {})[f"{row.assessment_id}_daily_severity_score"] = row.total
+        assessment_summary_by_date[row.entry_date][f"{row.assessment_id}_severity_category"] = row.severity
+        for item_number, (question, response_value) in enumerate(zip(definition.items, row.items), start=1):
+            response_option = next(option for option in question.options if option.value == response_value)
             item_responses.append(
                 {
                     "item_response_record_id": f"{assessment_record_id}:item:{item_number}",
                     "assessment_record_id": assessment_record_id,
-                    "assessment_entry_id": row["id"],
+                    "assessment_entry_id": row.id,
                     "daily_record_id": daily_record_id,
-                    "entry_date": row["entry_date"],
-                    "assessment_id": row["assessment_id"],
+                    "entry_date": row.entry_date,
+                    "assessment_id": row.assessment_id,
+                    "definition_version": definition_version,
+                    "question_id": question.question_id,
                     "item_number": item_number,
-                    "item_label": item_label,
+                    "item_label": question.report_label or question.prompt,
                     "response_value": response_value,
-                    "symptom_present": bool(response_value > 0),
+                    "response_label": response_option.label,
+                    "response_score": response_option.score if response_option.score is not None else "",
+                    "symptom_present": (
+                        bool(response_option.score > 0) if response_option.score is not None else ""
+                    ),
                 }
             )
-        if (row["notes"] or row["note_tag"]) and row["entry_date"] not in notes_by_date:
-            notes_by_date[row["entry_date"]] = {
-                "note_record_id": f"note:{row['entry_date']}",
+        if (row.notes or row.note_tag) and row.entry_date not in notes_by_date:
+            notes_by_date[row.entry_date] = {
+                "note_record_id": f"note:{row.entry_date}",
                 "daily_record_id": daily_record_id,
-                "entry_date": row["entry_date"],
-                "note_tag": row["note_tag"],
-                "note_text": row["notes"],
-                "created_at": row["created_at"],
-                "updated_at": row["updated_at"],
+                "entry_date": row.entry_date,
+                "note_tag": row.note_tag,
+                "note_text": row.notes,
+                "created_at": compatibility["created_at"],
+                "updated_at": compatibility["updated_at"],
             }
 
     treatment_events = []
@@ -1459,6 +2679,17 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
         {"metadata_key": "generated_at", "metadata_value": datetime.now().astimezone().isoformat(timespec="seconds"), "description": "Local generation timestamp in ISO 8601 format."},
         {"metadata_key": "application", "metadata_value": APPLICATION_NAME, "description": "Application that generated the workbook."},
         {"metadata_key": "questionnaires_included", "metadata_value": "|".join(selected_ids), "description": "Questionnaires selected for this workbook."},
+        {
+            "metadata_key": "questionnaire_definition_versions",
+            "metadata_value": "|".join(
+                f"{questionnaire_id}:v{version}"
+                for questionnaire_id in selected_ids
+                for version in sorted(definition_versions[questionnaire_id])
+            ),
+            "description": "Exact stored questionnaire definition versions represented in this workbook.",
+        },
+        {"metadata_key": "safety_message", "metadata_value": UNIVERSAL_SAFETY_MESSAGE, "description": "Universal owner-approved safety message."},
+        {"metadata_key": "non_diagnostic_notice", "metadata_value": NON_DIAGNOSTIC_OUTPUT_NOTICE, "description": "Interpretation boundary for all workbook content."},
         {"metadata_key": "date_format", "metadata_value": "YYYY-MM-DD", "description": "Calendar-date format used in all date fields."},
         {"metadata_key": "daily_relationship", "metadata_value": "daily_record_id", "description": "Join records across worksheets by the deterministic day:YYYY-MM-DD identifier."},
         {"metadata_key": "assessment_relationship", "metadata_value": "assessment_record_id", "description": "Join Item Responses to Daily Assessments by assessment_record_id."},
@@ -1471,7 +2702,7 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
         {"metadata_key": "privacy_notice", "metadata_value": "local sensitive data", "description": "This workbook may contain PHI. Store and share it deliberately."},
     ]
 
-    profile_end = max((str(row["entry_date"]) for row in assessments), default=date.today().isoformat())
+    profile_end = max((row.entry_date for row in assessments), default=date.today().isoformat())
     return {
         "Daily Assessments": daily_assessments,
         "Item Responses": item_responses,
@@ -1491,14 +2722,14 @@ def export_analysis_workbook(path: str, questionnaire_ids=None) -> None:
     if pd is None:
         raise RuntimeError("Analysis-ready Excel export requires pandas/openpyxl.")
     sheet_columns = {
-        "Daily Assessments": ["assessment_record_id", "assessment_entry_id", "daily_record_id", "entry_date", "assessment_id", "assessment_name", "daily_severity_score", "severity_category", "source", "created_at", "updated_at"],
-        "Item Responses": ["item_response_record_id", "assessment_record_id", "assessment_entry_id", "daily_record_id", "entry_date", "assessment_id", "item_number", "item_label", "response_value", "symptom_present"],
+        "Daily Assessments": ["assessment_record_id", "assessment_entry_id", "daily_record_id", "entry_date", "assessment_id", "assessment_name", "daily_severity_score", "severity_category", "source", "created_at", "updated_at", "definition_version", "interpretation_policy"],
+        "Item Responses": ["item_response_record_id", "assessment_record_id", "assessment_entry_id", "daily_record_id", "entry_date", "assessment_id", "item_number", "item_label", "response_value", "symptom_present", "definition_version", "question_id", "response_label", "response_score"],
         "Notes": ["note_record_id", "daily_record_id", "entry_date", "note_tag", "note_text", "created_at", "updated_at"],
         "Treatment Events": ["treatment_event_record_id", "treatment_event_id", "daily_record_id", "event_date", "event_type", "normalized_event_type", "description", "created_at"],
         "Treatment Cycles": ["treatment_cycle_record_id", "anchor_treatment_event_record_id", "cycle_number", "cycle_start_date", "cycle_end_date", "is_current_cycle"],
         "Metadata": ["metadata_key", "metadata_value", "description"],
         "Daily Summary": ["daily_record_id", "entry_date", "assessment_record_ids", "phq9_daily_severity_score", "phq9_severity_category", "gad7_daily_severity_score", "gad7_severity_category", "note_record_id", "treatment_event_record_ids", "treatment_event_count", "ketamine_recorded", "therapy_recorded", "medication_change_recorded"],
-        "14-Day Item Profile": ["profile_record_id", "window_start", "window_end", "assessment_id", "assessment_name", "item_number", "item_label", "symptom_present_days", "recorded_day_coverage", "calendar_days", "frequency_score"],
+        "14-Day Item Profile": ["profile_record_id", "window_start", "window_end", "assessment_id", "assessment_name", "item_number", "item_label", "symptom_present_days", "recorded_day_coverage", "calendar_days", "frequency_score", "definition_version"],
     }
     workbook_data = _analysis_workbook_data(questionnaire_ids)
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
@@ -1742,10 +2973,12 @@ def draw_line_chart(
 
 
 def add_chart(story, image_path: str, caption: str | None = None, width: float = 7.2 * inch) -> None:
+    chart_items = []
     if caption:
-        story.append(Paragraph(caption, getSampleStyleSheet()["Heading2"]))
-    story.append(Image(image_path, width=width, height=width * 0.47))
-    story.append(Spacer(1, 0.14 * inch))
+        chart_items.append(Paragraph(caption, getSampleStyleSheet()["Heading2"]))
+    chart_items.append(Image(image_path, width=width, height=width * 0.47))
+    chart_items.append(Spacer(1, 0.14 * inch))
+    story.append(KeepTogether(chart_items))
 
 
 def draw_treatment_bar_chart(path: str, title: str, rows: list[list[str]], labels: list[str]) -> None:
@@ -1819,121 +3052,229 @@ def available_report_date_range(questionnaire_ids=None) -> tuple[str, str]:
 def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None) -> None:
     if colors is None or PILImage is None:
         raise RuntimeError("PDF export requires reportlab and Pillow.")
-    selected_ids = normalize_questionnaire_selection(questionnaire_ids)
-    entries = fetch_assessment_entries("phq9", start, end) if "phq9" in selected_ids else []
-    gad_entries = fetch_assessment_entries("gad7", start, end) if "gad7" in selected_ids else []
-    if not entries and not gad_entries:
+    start, end = normalize_report_date_range(start, end)
+    requested_ids = normalize_questionnaire_selection(questionnaire_ids)
+    entries_by_questionnaire = {
+        questionnaire_id: fetch_assessment_entries(questionnaire_id, start, end)
+        for questionnaire_id in requested_ids
+    }
+    if not any(entries_by_questionnaire.values()):
         raise ValueError("No entries found in the selected date range.")
+    selected_ids = [questionnaire_id for questionnaire_id in requested_ids if entries_by_questionnaire[questionnaire_id]]
     comparison_start = (datetime.fromisoformat(end).date() - timedelta(days=27)).isoformat()
-    comparison_phq_entries = fetch_assessment_entries("phq9", comparison_start, end) if "phq9" in selected_ids else []
-    comparison_gad_entries = fetch_assessment_entries("gad7", comparison_start, end) if "gad7" in selected_ids else []
+    comparison_entries_by_questionnaire = {
+        questionnaire_id: fetch_assessment_entries(questionnaire_id, comparison_start, end)
+        for questionnaire_id in selected_ids
+    }
+    entries = entries_by_questionnaire.get("phq9", [])
+    gad_entries = entries_by_questionnaire.get("gad7", [])
+    comparison_phq_entries = comparison_entries_by_questionnaire.get("phq9", [])
+    comparison_gad_entries = comparison_entries_by_questionnaire.get("gad7", [])
     events = [
         (event_id, event_date, normalize_event_type(event_type), description)
         for event_id, event_date, event_type, description in fetch_events(start, end)
     ]
-    cycles = treatment_cycles(entries, events, end)
+    phq_definition_groups = _definition_groups_for_entries("phq9", entries) if entries else []
+    if entries:
+        phq_cycle_definition, phq_cycle_entries, phq_has_multiple_versions = _latest_definition_group(
+            "phq9", entries, end
+        )
+    else:
+        phq_cycle_definition = QUESTIONNAIRES["phq9"]
+        phq_cycle_entries = []
+        phq_has_multiple_versions = False
+    cycles = treatment_cycles(phq_cycle_entries, events, end)
+    item9_entries = [
+        entry
+        for definition, definition_entries in phq_definition_groups
+        if any(
+            question.question_id == "phq9.item9" and "phq9_item9_context" in question.behavior_ids
+            for question in definition.items
+        )
+        for entry in definition_entries
+    ]
     highlights = []
-    if "phq9" in selected_ids:
-        highlights.extend(symptom_highlights("phq9", comparison_phq_entries, end, limit=2))
-    if "gad7" in selected_ids:
-        highlights.extend(symptom_highlights("gad7", comparison_gad_entries, end, limit=2))
+    interpreted_profile_ids = []
+    for questionnaire_id in selected_ids:
+        definition, _, _ = _latest_definition_group(
+            questionnaire_id,
+            comparison_entries_by_questionnaire[questionnaire_id],
+            end,
+        )
+        if (
+            definition.interpretation_policy == "validated_builtin"
+            and questionnaire_profile_omission_reason(definition) is None
+        ):
+            interpreted_profile_ids.append(questionnaire_id)
+            highlights.extend(
+                symptom_highlights(
+                    questionnaire_id,
+                    comparison_entries_by_questionnaire[questionnaire_id],
+                    end,
+                    limit=2,
+                )
+            )
     item_profile = build_14_day_item_profile(end, selected_ids)
-    selected_names = " and ".join(QUESTIONNAIRES[questionnaire_id].display_name for questionnaire_id in selected_ids)
+    report_definitions = [
+        definition
+        for questionnaire_id in selected_ids
+        for definition, definition_entries in _definition_groups_for_entries(
+            questionnaire_id, entries_by_questionnaire[questionnaire_id]
+        )
+        if definition_entries
+    ]
 
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(pdf_path, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     chart_dir = Path(tempfile.mkdtemp(prefix="phq9_report_charts_"))
-    phq_chart = chart_dir / "phq9_recent.png"
-    gad_chart = chart_dir / "gad7_recent.png"
-    draw_line_chart(
-        str(phq_chart),
-        entries[-90:],
-        [("PHQ-9", [row.total for row in entries[-90:]], "#2563EB")],
-        "PHQ-9 Recorded Score Trend",
-        27,
-        events=events,
-        width=1100,
-        height=360,
-    )
-    draw_line_chart(
-        str(gad_chart),
-        gad_entries[-90:],
-        [("GAD-7", [row.total for row in gad_entries[-90:]], "#0F766E")],
-        "GAD-7 Recorded Score Trend",
-        21,
-        events=events,
-        width=1100,
-        height=360,
-    )
+    chart_colors = ("#2563EB", "#0F766E", "#7C3AED", "#B45309")
+    report_charts = []
+    for questionnaire_index, questionnaire_id in enumerate(selected_ids):
+        for series in build_questionnaire_trend_series(
+            questionnaire_id, entries_by_questionnaire[questionnaire_id]
+        ):
+            chart_path = chart_dir / (
+                f"{questionnaire_id}_v{series.definition.definition_version}_recent.png"
+            )
+            recent_entries = list(series.entries[-90:])
+            draw_line_chart(
+                str(chart_path),
+                recent_entries,
+                [
+                    (
+                        series.label,
+                        [row.total for row in recent_entries],
+                        chart_colors[questionnaire_index % len(chart_colors)],
+                    )
+                ],
+                f"{series.label} Recorded Score Trend",
+                int(series.definition.score_max or 1),
+                events=events,
+                width=1100,
+                height=360,
+            )
+            report_charts.append((series, chart_path))
 
     story = [
         Paragraph(f"{APPLICATION_NAME} Clinician Discussion Report", styles["Title"]),
         Paragraph(f"Date range: {start} to {end}", styles["Normal"]),
         Paragraph(DISCLAIMER, styles["BodyText"]),
+        Paragraph(NON_DIAGNOSTIC_OUTPUT_NOTICE, styles["BodyText"]),
         Paragraph(UNIVERSAL_SAFETY_MESSAGE, styles["BodyText"]),
         Spacer(1, 0.18 * inch),
         Paragraph("How to Read This Report", styles["Heading1"]),
-        Paragraph(
-            f"<b>Daily Severity Score:</b> the item responses from one {selected_names} check-in are added together. "
-            "It describes the severity recorded on that particular day.",
-            styles["BodyText"],
-        ),
-        Paragraph(
-            "<b>14-Day Symptom Frequency Score:</b> for each item, the report counts how many of the 14 calendar days "
-            "had a recorded response above zero. A response of 1 and a response of 3 each count as one symptom-present "
-            "day, even though they contribute differently to the Daily Severity Score. Item counts are converted to "
-            "0 points for 0 days, 1 point for 1-6 days, 2 points for 7-11 days, or 3 points for 12-14 days, then summed.",
-            styles["BodyText"],
-        ),
-        Paragraph(
-            "<b>Coverage and missing check-ins:</b> coverage shows how many daily check-ins were recorded in a calendar "
-            "window. A day without a check-in contributes no recorded symptom-present response to the frequency score, "
-            "but it is missing information, not evidence that the symptom was absent. Interpret comparisons alongside coverage.",
-            styles["BodyText"],
-        ),
-        Spacer(1, 0.12 * inch),
-        Paragraph("Recorded Period Overview", styles["Heading1"]),
     ]
-    glance_rows = [["Assessment", "Recorded check-ins", "Most recent score", "Most recent date"]]
-    entry_sets = {"phq9": entries, "gad7": gad_entries}
-    for assessment_id in selected_ids:
-        assessment_entries = entry_sets[assessment_id]
-        name = ASSESSMENTS[assessment_id].display_name
-        glance_rows.append(
+
+    definition_rows = [["Questionnaire", "Definition", "Output policy"]]
+    for definition in report_definitions:
+        output_policy = (
+            "Validated built-in interpretation"
+            if definition.interpretation_policy == "validated_builtin"
+            else "Descriptive/raw output only; no automatic clinical interpretation"
+        )
+        definition_rows.append(
+            [definition.display_name, f"v{definition.definition_version}", output_policy]
+        )
+    add_pdf_table(
+        story,
+        "Questionnaire Definitions",
+        definition_rows,
+        col_widths=[1.35 * inch, 0.8 * inch, 4.55 * inch],
+        wrap_columns={0, 1, 2},
+    )
+    if report_charts:
+        story.append(
+            Paragraph(
+                "<b>Daily Severity Score:</b> when a questionnaire definition declares a supported total-score "
+                "calculation, its recorded item responses are combined for that check-in. Definition versions are "
+                "kept separate.",
+                styles["BodyText"],
+            )
+        )
+    if item_profile:
+        story.extend(
             [
-                name,
-                str(len(assessment_entries)),
-                f"{assessment_entries[-1].total} ({assessment_entries[-1].severity})" if assessment_entries else "n/a",
-                assessment_entries[-1].entry_date if assessment_entries else "n/a",
+                Paragraph(
+                    "<b>14-Day Symptom Frequency Score:</b> for definitions that declare the supported profile, each "
+                    "item counts calendar days with a scored response above zero. Counts convert to 0 points for 0 "
+                    "days, 1 point for 1-6 days, 2 points for 7-11 days, or 3 points for 12-14 days.",
+                    styles["BodyText"],
+                ),
+                Paragraph(
+                    "<b>Coverage and missing check-ins:</b> coverage shows recorded daily check-ins in the calendar "
+                    "window. A day without a check-in is missing information, not evidence that a symptom was absent.",
+                    styles["BodyText"],
+                ),
             ]
         )
+    story.extend([Spacer(1, 0.12 * inch), Paragraph("Recorded Period Overview", styles["Heading1"])])
+    glance_rows = [["Questionnaire", "Definition", "Check-ins", "Most recent result", "Most recent date"]]
+    for questionnaire_id in selected_ids:
+        for definition, definition_entries in _definition_groups_for_entries(
+            questionnaire_id, entries_by_questionnaire[questionnaire_id]
+        ):
+            if not definition_entries:
+                continue
+            recent = definition_entries[-1]
+            recent_result = str(recent.total)
+            if definition.interpretation_policy == "validated_builtin" and recent.severity:
+                recent_result = f"{recent.total} ({recent.severity})"
+            glance_rows.append(
+                [
+                    definition.display_name,
+                    f"v{definition.definition_version}",
+                    str(len(definition_entries)),
+                    recent_result,
+                    recent.entry_date,
+                ]
+            )
     add_pdf_table(
         story,
         "Recorded Check-Ins",
         glance_rows,
-        col_widths=[1.2 * inch, 1.35 * inch, 2.1 * inch, 1.45 * inch],
-        wrap_columns={0, 1, 2, 3},
+        col_widths=[1.25 * inch, 0.7 * inch, 0.7 * inch, 2.45 * inch, 1.15 * inch],
+        wrap_columns={0, 1, 2, 3, 4},
     )
-    story.append(Paragraph("Overall pattern", styles["Heading2"]))
-    story.append(Paragraph(overall_pattern_summary(comparison_phq_entries, comparison_gad_entries, end, selected_ids), styles["BodyText"]))
-    story.append(Paragraph("Symptom highlights", styles["Heading2"]))
-    for highlight in highlights:
-        story.append(Paragraph(f"- {highlight}", styles["BodyText"]))
-    story.append(Spacer(1, 0.08 * inch))
-    story.append(
-        Paragraph(
-            "Highlights describe recorded check-ins only. A day without a check-in is missing information, not evidence that a symptom was absent.",
-            styles["BodyText"],
+    if interpreted_profile_ids:
+        summary_story = [Paragraph("Overall pattern", styles["Heading2"])]
+        summary_story.append(
+            Paragraph(
+                overall_pattern_summary(
+                    comparison_phq_entries,
+                    comparison_gad_entries,
+                    end,
+                    interpreted_profile_ids,
+                    comparison_entries_by_questionnaire,
+                ),
+                styles["BodyText"],
+            )
         )
-    )
+        summary_story.append(Paragraph("Symptom highlights", styles["Heading2"]))
+        for highlight in highlights:
+            summary_story.append(Paragraph(f"- {highlight}", styles["BodyText"]))
+        summary_story.append(Spacer(1, 0.08 * inch))
+        summary_story.append(
+            Paragraph(
+                "Highlights describe recorded check-ins only. A day without a check-in is missing information, not evidence that a symptom was absent.",
+                styles["BodyText"],
+            )
+        )
+        story.append(KeepTogether(summary_story))
 
     story.append(PageBreak())
     story.append(Paragraph("Recorded Symptom Trends", styles["Heading1"]))
-    if entries:
-        add_chart(story, str(phq_chart), "PHQ-9 scores across the selected period", width=6.1 * inch)
-    if gad_entries:
-        add_chart(story, str(gad_chart), "GAD-7 scores across the selected period", width=6.1 * inch)
-    q9_context = item9_context(entries, end)
+    for series, chart_path in report_charts:
+        add_chart(
+            story,
+            str(chart_path),
+            f"{series.label} scores across the selected period",
+            width=6.1 * inch,
+        )
+    for definition in report_definitions:
+        omission = questionnaire_total_trend_omission_reason(definition)
+        if omission:
+            story.append(Paragraph(f"{definition.display_name} v{definition.definition_version}: {omission}", styles["BodyText"]))
+    q9_context = item9_context(item9_entries, end)
     q9_summary = item9_context_summary(q9_context)
     if q9_summary:
         story.append(Paragraph("PHQ-9 item 9 context", styles["Heading2"]))
@@ -1946,31 +3287,55 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
 
     story.append(PageBreak())
     story.append(Paragraph("Current 14-Day Item Profile", styles["Heading1"]))
-    story.append(
-        Paragraph(
-            f"Window: {item_profile[0]['window_start']} to {end}. Present days count recorded responses above zero; "
-            "coverage is recorded check-ins out of 14 calendar days. Missing days remain missing information.",
-            styles["BodyText"],
+    if item_profile:
+        story.append(
+            Paragraph(
+                f"Window: {item_profile[0]['window_start']} to {end}. Present days count recorded scored responses "
+                "above zero; coverage is recorded check-ins out of 14 calendar days. Missing days remain missing information.",
+                styles["BodyText"],
+            )
         )
-    )
     for assessment_id in selected_ids:
-        profile_rows = [row for row in item_profile if row["assessment_id"] == assessment_id]
-        add_pdf_table(
-            story,
-            ASSESSMENTS[assessment_id].display_name,
-            [["Item", "Present days", "Coverage", "Score (0-3)"]]
-            + [
-                [
-                    f"{row['item_number']}. {row['item_label']}",
-                    str(row["symptom_present_days"]),
-                    f"{row['recorded_day_coverage']} of {row['calendar_days']}",
-                    str(row["frequency_score"]),
-                ]
-                for row in profile_rows
-            ],
-            col_widths=[4.05 * inch, 0.9 * inch, 0.85 * inch, 0.9 * inch],
-            wrap_columns={0, 1, 2, 3},
-        )
+        assessment_profile_rows = [row for row in item_profile if row["assessment_id"] == assessment_id]
+        for definition_version in sorted({row["definition_version"] for row in assessment_profile_rows}):
+            profile_rows = [
+                row for row in assessment_profile_rows if row["definition_version"] == definition_version
+            ]
+            if not profile_rows:
+                continue
+            definition = next(
+                definition
+                for definition in report_definitions
+                if definition.questionnaire_id == assessment_id
+                and definition.definition_version == definition_version
+            )
+            add_pdf_table(
+                story,
+                f"{definition.display_name} v{definition.definition_version}",
+                [["Item", "Present days", "Coverage", "Score (0-3)"]]
+                + [
+                    [
+                        f"{row['item_number']}. {row['item_label']}",
+                        str(row["symptom_present_days"]),
+                        f"{row['recorded_day_coverage']} of {row['calendar_days']}",
+                        str(row["frequency_score"]),
+                    ]
+                    for row in profile_rows
+                ],
+                col_widths=[4.05 * inch, 0.9 * inch, 0.85 * inch, 0.9 * inch],
+                wrap_columns={0, 1, 2, 3},
+            )
+        for definition in [
+            candidate for candidate in report_definitions if candidate.questionnaire_id == assessment_id
+        ]:
+            omission = questionnaire_profile_omission_reason(definition)
+            if omission:
+                story.append(
+                    Paragraph(
+                        f"{definition.display_name} v{definition.definition_version}: {omission}",
+                        styles["BodyText"],
+                    )
+                )
 
     story.append(PageBreak())
     story.append(Paragraph("Treatment Context", styles["Heading1"]))
@@ -1981,7 +3346,12 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
         )
     )
     if cycles:
-        cycle_rows = [["Cycle", "Dates", "Recorded PHQ-9 pattern"]]
+        cycle_definition_label = (
+            f"PHQ-9 v{phq_cycle_definition.definition_version}"
+            if phq_has_multiple_versions
+            else "PHQ-9"
+        )
+        cycle_rows = [["Cycle", "Dates", f"Recorded {cycle_definition_label} pattern"]]
         for cycle in cycles:
             cycle_rows.append([cycle.label, f"{cycle.start_date} to {cycle.end_date}", treatment_cycle_observation(cycle)])
         add_pdf_table(
@@ -1996,9 +3366,9 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
             draw_line_chart(
                 str(cycle_chart),
                 cycle.entries,
-                [("PHQ-9", [row.total for row in cycle.entries], "#7C3AED")],
-                f"{cycle.label}: Recorded PHQ-9 Scores",
-                27,
+                [(cycle_definition_label, [row.total for row in cycle.entries], "#7C3AED")],
+                f"{cycle.label}: Recorded {cycle_definition_label} Scores",
+                int(phq_cycle_definition.score_max or 1),
                 width=1100,
                 height=300,
             )
@@ -2413,10 +3783,18 @@ class PHQ9App(Tk):
         self.review_notebook.add(treatment, text="Treatment Cycles")
         self.review_notebook.add(long_term, text="Long-Term Trends")
 
-        self.phq_recent_chart = LineChart(overview, width=520, height=250)
-        self.phq_recent_chart.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 5), pady=6)
-        self.gad_recent_chart = LineChart(overview, width=520, height=250)
-        self.gad_recent_chart.pack(side=RIGHT, fill=BOTH, expand=True, padx=(5, 0), pady=6)
+        self.recent_trend_charts = {}
+        self.long_term_trend_charts = {}
+        for index, questionnaire_id in enumerate(QUESTIONNAIRE_ORDER):
+            chart = LineChart(overview, width=520, height=250)
+            chart.pack(
+                side=LEFT,
+                fill=BOTH,
+                expand=True,
+                padx=(0 if index == 0 else 5, 0 if index == len(QUESTIONNAIRE_ORDER) - 1 else 5),
+                pady=6,
+            )
+            self.recent_trend_charts[questionnaire_id] = chart
 
         self.cycle_labels = []
         self.cycle_charts = []
@@ -2430,10 +3808,16 @@ class PHQ9App(Tk):
             self.cycle_labels.append(label)
             self.cycle_charts.append(chart)
 
-        self.phq_long_chart = LineChart(long_term, width=1050, height=220)
-        self.phq_long_chart.pack(fill=BOTH, expand=True, padx=6, pady=(6, 3))
-        self.gad_long_chart = LineChart(long_term, width=1050, height=220)
-        self.gad_long_chart.pack(fill=BOTH, expand=True, padx=6, pady=(3, 6))
+        for index, questionnaire_id in enumerate(QUESTIONNAIRE_ORDER):
+            chart = LineChart(long_term, width=1050, height=220)
+            chart.pack(fill=BOTH, expand=True, padx=6, pady=(6 if index == 0 else 3, 6 if index == len(QUESTIONNAIRE_ORDER) - 1 else 3))
+            self.long_term_trend_charts[questionnaire_id] = chart
+
+        # Compatibility aliases retained for existing tests and integrations.
+        self.phq_recent_chart = self.recent_trend_charts["phq9"]
+        self.gad_recent_chart = self.recent_trend_charts["gad7"]
+        self.phq_long_chart = self.long_term_trend_charts["phq9"]
+        self.gad_long_chart = self.long_term_trend_charts["gad7"]
 
     def build_entry_tab(self):
         self.entry_canvas = Canvas(self.entry_tab, bg="#F8FAFC", highlightthickness=0)
@@ -2475,48 +3859,71 @@ class PHQ9App(Tk):
         self.questionnaire_selected_vars = {}
         self.questionnaire_status_labels = {}
         self.questionnaire_boxes = {}
+        self.active_questionnaire_id = StringVar(value=QUESTIONNAIRE_ORDER[0])
         assessment_area = Frame(form, bg="#F8FAFC")
         assessment_area.grid(row=1, column=0, columnspan=5, sticky="nsew", pady=(8, 4))
-        Label(
+        selector = LabelFrame(
             assessment_area,
-            text=UNIVERSAL_SAFETY_MESSAGE,
-            bg="#FFF7ED",
-            fg="#9A3412",
-            wraplength=1000,
-            justify=LEFT,
-            padx=10,
-            pady=8,
-        ).grid(row=0, column=0, columnspan=len(QUESTIONNAIRE_ORDER), sticky="we", pady=(0, 8))
-        selector = Frame(assessment_area, bg="#F8FAFC")
-        selector.grid(row=1, column=0, columnspan=len(QUESTIONNAIRE_ORDER), sticky="w", pady=(0, 8))
-        Label(selector, text="Questionnaires for this date:", bg="#F8FAFC", font=("Segoe UI", 10, "bold")).pack(side=LEFT)
-        for assessment_id in QUESTIONNAIRE_ORDER:
+            text="Questionnaire status and form selection",
+            bg="#F8FAFC",
+            padx=8,
+            pady=6,
+        )
+        selector.grid(row=0, column=0, sticky="we", pady=(0, 8))
+        Label(selector, text="Open one form at a time. Include every completed form you want to save.", bg="#F8FAFC").grid(
+            row=0, column=0, columnspan=3, sticky="w", pady=(0, 4)
+        )
+        for roster_row, assessment_id in enumerate(QUESTIONNAIRE_ORDER, start=1):
             definition = QUESTIONNAIRES[assessment_id]
             selected_var = IntVar(value=1)
             self.questionnaire_selected_vars[assessment_id] = selected_var
-            Checkbutton(
+            ttk.Radiobutton(
                 selector,
                 text=definition.display_name,
-                variable=selected_var,
+                value=assessment_id,
+                variable=self.active_questionnaire_id,
                 command=self.update_questionnaire_visibility,
+            ).grid(row=roster_row, column=0, sticky="w", padx=(0, 8), pady=2)
+            Checkbutton(
+                selector,
+                text="Include in save",
+                variable=selected_var,
                 bg="#F8FAFC",
-            ).pack(side=LEFT, padx=(10, 2))
+            ).grid(row=roster_row, column=1, sticky="w", padx=8, pady=2)
             status = Label(selector, text="Not completed", bg="#F8FAFC", fg="#64748B")
-            status.pack(side=LEFT, padx=(0, 8))
+            status.grid(row=roster_row, column=2, sticky="w", padx=8, pady=2)
             self.questionnaire_status_labels[assessment_id] = status
-        for col_idx, assessment_id in enumerate(ASSESSMENT_ORDER):
+        for assessment_id in ASSESSMENT_ORDER:
             definition = ASSESSMENTS[assessment_id]
             box = LabelFrame(assessment_area, text=definition.display_name, bg="#F8FAFC", padx=10, pady=10)
-            box.grid(row=2, column=col_idx, sticky="nsew", padx=(0, 10))
+            box.grid(row=1, column=0, sticky="nsew")
             self.questionnaire_boxes[assessment_id] = box
             self.assessment_item_vars[assessment_id] = []
-            for idx, label in enumerate(definition.item_labels, start=1):
-                Label(box, text=f"{idx}. {label}", bg="#F8FAFC", wraplength=410, justify=LEFT).grid(row=idx, column=0, sticky="w", pady=3)
-                var = IntVar(value=0)
+            Label(
+                box,
+                text=UNIVERSAL_SAFETY_MESSAGE,
+                bg="#FFF7ED",
+                fg="#9A3412",
+                wraplength=940,
+                justify=LEFT,
+                padx=10,
+                pady=8,
+            ).grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 8))
+            for idx, question in enumerate(definition.items, start=1):
+                Label(box, text=f"{idx}. {question.report_label or question.prompt}", bg="#F8FAFC", wraplength=650, justify=LEFT).grid(
+                    row=idx, column=0, sticky="w", pady=3
+                )
+                var = StringVar(value=UNANSWERED_RESPONSE)
                 self.assessment_item_vars[assessment_id].append(var)
-                ttk.Spinbox(box, from_=0, to=3, textvariable=var, width=5).grid(row=idx, column=1, sticky="w", padx=8)
+                ttk.Combobox(
+                    box,
+                    textvariable=var,
+                    values=questionnaire_response_choices(question),
+                    state="readonly",
+                    width=34,
+                ).grid(row=idx, column=1, sticky="w", padx=8, pady=3)
         assessment_area.columnconfigure(0, weight=1)
-        assessment_area.columnconfigure(1, weight=1)
+        self.update_questionnaire_visibility()
 
         Button(form, text="Save Today's Check-In", command=self.save_entry).grid(row=2, column=1, sticky="w", padx=8, pady=(10, 8))
         Label(
@@ -2728,6 +4135,7 @@ class PHQ9App(Tk):
 
     def checkin_state(self) -> tuple:
         return (
+            self.active_questionnaire_id.get(),
             tuple((assessment_id, self.questionnaire_selected_vars[assessment_id].get()) for assessment_id in QUESTIONNAIRE_ORDER),
             tuple(tuple(var.get() for var in self.assessment_item_vars[assessment_id]) for assessment_id in ASSESSMENT_ORDER),
             self.notes_box.get("1.0", END).strip(),
@@ -2739,10 +4147,14 @@ class PHQ9App(Tk):
         )
 
     def update_questionnaire_visibility(self):
-        for column, assessment_id in enumerate(QUESTIONNAIRE_ORDER):
+        active_id = self.active_questionnaire_id.get()
+        if active_id not in QUESTIONNAIRES:
+            active_id = QUESTIONNAIRE_ORDER[0]
+            self.active_questionnaire_id.set(active_id)
+        for assessment_id in QUESTIONNAIRE_ORDER:
             box = self.questionnaire_boxes[assessment_id]
-            if self.questionnaire_selected_vars[assessment_id].get():
-                box.grid(row=2, column=column, sticky="nsew", padx=(0, 10))
+            if assessment_id == active_id:
+                box.grid(row=1, column=0, sticky="nsew")
             else:
                 box.grid_remove()
 
@@ -2802,7 +4214,10 @@ class PHQ9App(Tk):
         day_data = fetch_day_data(entry_date)
         assessments = day_data["assessments"]
         has_data = bool(assessments or day_data["notes"] or day_data["events"])
+        active_id = next((assessment_id for assessment_id in QUESTIONNAIRE_ORDER if assessment_id in assessments), QUESTIONNAIRE_ORDER[0])
+        self.active_questionnaire_id.set(active_id)
         for assessment_id in ASSESSMENT_ORDER:
+            definition = QUESTIONNAIRES[assessment_id]
             row = assessments.get(assessment_id)
             self.questionnaire_selected_vars[assessment_id].set(1 if row or not has_data else 0)
             self.questionnaire_status_labels[assessment_id].config(
@@ -2810,7 +4225,11 @@ class PHQ9App(Tk):
                 fg="#047857" if row else "#64748B",
             )
             for idx, var in enumerate(self.assessment_item_vars[assessment_id]):
-                var.set(row.items[idx] if row else 0)
+                var.set(
+                    display_questionnaire_response(definition.items[idx], row.items[idx])
+                    if row
+                    else UNANSWERED_RESPONSE
+                )
         self.update_questionnaire_visibility()
         self.notes_box.delete("1.0", END)
         self.notes_box.insert("1.0", day_data["notes"])
@@ -3061,33 +4480,83 @@ class PHQ9App(Tk):
 
     def refresh_all(self):
         self.refresh_events()
-        phq_entries = fetch_assessment_entries("phq9")
-        gad_entries = fetch_assessment_entries("gad7")
-        all_dates = sorted({row.entry_date for row in phq_entries + gad_entries})
+        entries_by_questionnaire = {
+            questionnaire_id: fetch_assessment_entries(questionnaire_id)
+            for questionnaire_id in QUESTIONNAIRE_ORDER
+        }
+        phq_entries = entries_by_questionnaire["phq9"]
+        gad_entries = entries_by_questionnaire["gad7"]
+        all_dates = sorted(
+            {
+                row.entry_date
+                for entries in entries_by_questionnaire.values()
+                for row in entries
+            }
+        )
         if all_dates:
             latest_date = all_dates[-1]
-            self.review_summary.config(text=overall_pattern_summary(phq_entries, gad_entries, latest_date))
-            highlights = [
-                *symptom_highlights("phq9", phq_entries, latest_date, limit=2),
-                *symptom_highlights("gad7", gad_entries, latest_date, limit=2),
+            interpreted_profile_ids = [
+                questionnaire_id
+                for questionnaire_id in QUESTIONNAIRE_ORDER
+                if QUESTIONNAIRES[questionnaire_id].interpretation_policy == "validated_builtin"
+                and questionnaire_profile_omission_reason(QUESTIONNAIRES[questionnaire_id]) is None
             ]
+            self.review_summary.config(
+                text=overall_pattern_summary(
+                    phq_entries,
+                    gad_entries,
+                    latest_date,
+                    interpreted_profile_ids,
+                    entries_by_questionnaire,
+                )
+            )
+            highlights = []
+            for questionnaire_id in interpreted_profile_ids:
+                highlights.extend(
+                    symptom_highlights(
+                        questionnaire_id,
+                        entries_by_questionnaire[questionnaire_id],
+                        latest_date,
+                        limit=2,
+                    )
+                )
             for index, label in enumerate(self.review_highlights):
                 label.config(text=f"• {highlights[index]}" if index < len(highlights) else "")
 
-            phq_recent = phq_entries[-28:]
-            gad_recent = gad_entries[-28:]
-            self.phq_recent_chart.draw_series(
-                phq_recent,
-                [("PHQ-9", [row.total for row in phq_recent], "#2563EB")],
-                27,
-                "Recent PHQ-9 recorded scores",
-            )
-            self.gad_recent_chart.draw_series(
-                gad_recent,
-                [("GAD-7", [row.total for row in gad_recent], "#0F766E")],
-                21,
-                "Recent GAD-7 recorded scores",
-            )
+            chart_colors = ("#2563EB", "#0F766E", "#7C3AED", "#B45309")
+            for index, questionnaire_id in enumerate(QUESTIONNAIRE_ORDER):
+                trend_series = build_questionnaire_trend_series(
+                    questionnaire_id, entries_by_questionnaire[questionnaire_id]
+                )
+                definition = QUESTIONNAIRES[questionnaire_id]
+                color = chart_colors[index % len(chart_colors)]
+                if trend_series:
+                    current_series = trend_series[-1]
+                    definition = current_series.definition
+                    recent_entries = list(current_series.entries[-28:])
+                    long_entries = list(current_series.entries[-120:])
+                    version_note = (
+                        f" v{definition.definition_version}; earlier versions are not combined"
+                        if len(trend_series) > 1
+                        else ""
+                    )
+                    y_max = int(definition.score_max or 1)
+                    self.recent_trend_charts[questionnaire_id].draw_series(
+                        recent_entries,
+                        [(definition.display_name, [row.total for row in recent_entries], color)],
+                        y_max,
+                        f"Recent {definition.display_name} recorded scores{version_note}",
+                    )
+                    self.long_term_trend_charts[questionnaire_id].draw_series(
+                        long_entries,
+                        [(definition.display_name, [row.total for row in long_entries], color)],
+                        y_max,
+                        f"Long-term {definition.display_name} recorded scores (up to 120 entries){version_note}",
+                    )
+                else:
+                    reason = questionnaire_total_trend_omission_reason(definition)
+                    self.recent_trend_charts[questionnaire_id].draw_series([], [], 1, reason)
+                    self.long_term_trend_charts[questionnaire_id].draw_series([], [], 1, reason)
 
             cycles = treatment_cycles(phq_entries, fetch_events(end=latest_date), latest_date)
             for index, (label, chart) in enumerate(zip(self.cycle_labels, self.cycle_charts)):
@@ -3104,31 +4573,19 @@ class PHQ9App(Tk):
                     label.config(text="A second recorded ketamine infusion is needed to show this cycle.")
                     chart.draw_series([], [], 27, "Treatment cycle not available")
 
-            phq_long = phq_entries[-120:]
-            gad_long = gad_entries[-120:]
-            self.phq_long_chart.draw_series(
-                phq_long,
-                [("PHQ-9", [row.total for row in phq_long], "#2563EB")],
-                27,
-                "Long-term PHQ-9 recorded scores (up to 120 entries)",
-            )
-            self.gad_long_chart.draw_series(
-                gad_long,
-                [("GAD-7", [row.total for row in gad_long], "#0F766E")],
-                21,
-                "Long-term GAD-7 recorded scores (up to 120 entries)",
-            )
         else:
             self.review_summary.config(text="No check-ins are available yet. Today's Check-In is ready when you are.")
             for label in self.review_highlights:
                 label.config(text="")
-            for chart, title, y_max in (
-                (self.phq_recent_chart, "Recent PHQ-9 recorded scores", 27),
-                (self.gad_recent_chart, "Recent GAD-7 recorded scores", 21),
-                (self.phq_long_chart, "Long-term PHQ-9 recorded scores", 27),
-                (self.gad_long_chart, "Long-term GAD-7 recorded scores", 21),
-            ):
-                chart.draw_series([], [], y_max, title)
+            for questionnaire_id in QUESTIONNAIRE_ORDER:
+                definition = QUESTIONNAIRES[questionnaire_id]
+                y_max = int(definition.score_max or 1)
+                self.recent_trend_charts[questionnaire_id].draw_series(
+                    [], [], y_max, f"Recent {definition.display_name} recorded scores"
+                )
+                self.long_term_trend_charts[questionnaire_id].draw_series(
+                    [], [], y_max, f"Long-term {definition.display_name} recorded scores"
+                )
             for label, chart in zip(self.cycle_labels, self.cycle_charts):
                 label.config(text="No recorded ketamine infusion is available for cycle review.")
                 chart.draw_series([], [], 27, "Treatment cycle not available")
@@ -3178,21 +4635,40 @@ class PHQ9App(Tk):
     def refresh_item_table(self):
         for row in self.item_table.get_children():
             self.item_table.delete(row)
-        for assessment_id in ASSESSMENT_ORDER:
-            definition = ASSESSMENTS[assessment_id]
-            entries = fetch_assessment_entries(assessment_id)
-            score_14_day = calculate_14_day_symptom_frequency_score(entries, definition.item_count, assessment_id)
-            if not entries:
-                continue
-            for idx, label in enumerate(definition.item_labels, start=1):
-                values = [row.items[idx - 1] for row in entries]
-                item_score = score_14_day.item_scores[idx - 1]
-                days_present = score_14_day.item_counts[idx - 1]
-                self.item_table.insert(
-                    "",
-                    END,
-                    values=[definition.display_name, f"Item {idx}: {label}", f"{sum(values) / len(values):.1f}", f"{item_score} ({days_present} days)"],
+        for questionnaire_id in QUESTIONNAIRE_ORDER:
+            entries = fetch_assessment_entries(questionnaire_id)
+            definition_groups = _definition_groups_for_entries(questionnaire_id, entries)
+            for definition, definition_entries in definition_groups:
+                if not definition_entries or questionnaire_profile_omission_reason(definition) is not None:
+                    continue
+                end_date = max(row.entry_date for row in definition_entries)
+                start_date = (datetime.fromisoformat(end_date).date() - timedelta(days=13)).isoformat()
+                score_14_day = calculate_questionnaire_profile_for_window(
+                    definition, definition_entries, start_date, end_date
                 )
+                version_label = (
+                    f" v{definition.definition_version}"
+                    if len(definition_groups) > 1
+                    else ""
+                )
+                for idx, question in enumerate(definition.items, start=1):
+                    values = [
+                        _profile_response_score(question, row.items[idx - 1])
+                        for row in definition_entries
+                    ]
+                    item_score = score_14_day.item_scores[idx - 1]
+                    days_present = score_14_day.item_counts[idx - 1]
+                    label = question.report_label or question.prompt
+                    self.item_table.insert(
+                        "",
+                        END,
+                        values=[
+                            f"{definition.display_name}{version_label}",
+                            f"Item {idx}: {label}",
+                            f"{sum(values) / len(values):.1f}",
+                            f"{item_score} ({days_present} days)",
+                        ],
+                    )
 
     def refresh_events(self):
         for row in self.events_table.get_children():
@@ -3281,30 +4757,31 @@ class PHQ9App(Tk):
             messagebox.showerror("No questionnaire selected", "Select at least one questionnaire to record.")
             return
         saved = []
+        responses_by_questionnaire = {}
         for assessment_id in selected:
             definition = ASSESSMENTS[assessment_id]
-            items = [int(var.get()) for var in self.assessment_item_vars[assessment_id]]
-            if any(score < 0 or score > 3 for score in items):
-                messagebox.showerror("Invalid score", f"Each {definition.display_name} item must be 0, 1, 2, or 3.")
+            items = [
+                parse_questionnaire_response(question, var.get())
+                for question, var in zip(definition.items, self.assessment_item_vars[assessment_id])
+            ]
+            unanswered = next((index for index, response in enumerate(items, start=1) if response is None), None)
+            if unanswered is not None:
+                self.active_questionnaire_id.set(assessment_id)
+                self.update_questionnaire_visibility()
+                messagebox.showerror(
+                    "Unanswered question",
+                    f"Choose a response for {definition.display_name} question {unanswered} before saving.",
+                )
                 return
-            if assessment_id == "phq9":
-                upsert_entry(
-                    entry_date,
-                    items,
-                    notes=str(existing["notes"]),
-                    note_tag=str(existing["note_tag"]),
-                    source="manual",
-                )
-            else:
-                upsert_assessment_entry(
-                    assessment_id,
-                    entry_date,
-                    items,
-                    notes=str(existing["notes"]),
-                    note_tag=str(existing["note_tag"]),
-                    source="manual",
-                )
+            responses_by_questionnaire[assessment_id] = items
             saved.append(definition.display_name)
+        upsert_questionnaire_entries(
+            entry_date,
+            responses_by_questionnaire,
+            notes=str(existing["notes"]),
+            note_tag=str(existing["note_tag"]),
+            source="manual",
+        )
         self.refresh_all()
         self.load_checkin_date(confirm_unsaved=False)
         self.show_checkin_details()
@@ -3348,14 +4825,15 @@ class PHQ9App(Tk):
         self.refresh_events()
         messagebox.showinfo("Saved", f"Saved event for {event_date}.")
 
-    def choose_output_questionnaires(self, title, on_confirm):
+    def choose_output_questionnaires(self, title, on_confirm, questionnaire_ids=None):
+        questionnaire_ids = normalize_questionnaire_selection(questionnaire_ids)
         dialog = Toplevel(self)
         dialog.title(title)
         dialog.transient(self)
         dialog.grab_set()
         Label(dialog, text="Include questionnaires", font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=16, pady=(14, 6))
         variables = {}
-        for questionnaire_id in QUESTIONNAIRE_ORDER:
+        for questionnaire_id in questionnaire_ids:
             variable = IntVar(value=1)
             variables[questionnaire_id] = variable
             Checkbutton(
@@ -3381,15 +4859,73 @@ class PHQ9App(Tk):
         PHQ9App._create_report_for(self, QUESTIONNAIRE_ORDER)
 
     def choose_report(self):
-        self.choose_output_questionnaires("Choose report questionnaires", self._create_report_for)
-
-    def _create_report_for(self, selected_ids):
         try:
-            start, end = (
-                available_report_date_range()
-                if selected_ids == QUESTIONNAIRE_ORDER
-                else available_report_date_range(selected_ids)
+            default_start, default_end = available_report_date_range()
+        except ValueError as exc:
+            messagebox.showinfo("Report unavailable", str(exc))
+            return
+
+        dialog = Toplevel(self)
+        dialog.title("Choose report date range")
+        dialog.transient(self)
+        dialog.grab_set()
+        Label(dialog, text="Choose date range first", font=("Segoe UI", 11, "bold")).pack(
+            anchor="w", padx=16, pady=(14, 6)
+        )
+        start_value = StringVar(value=default_start)
+        end_value = StringVar(value=default_end)
+        fields = Frame(dialog)
+        fields.pack(fill="x", padx=16, pady=4)
+        Label(fields, text="Start (YYYY-MM-DD)").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=3)
+        Entry(fields, textvariable=start_value, width=14).grid(row=0, column=1, sticky="w", pady=3)
+        Label(fields, text="End (YYYY-MM-DD)").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=3)
+        Entry(fields, textvariable=end_value, width=14).grid(row=1, column=1, sticky="w", pady=3)
+
+        def confirm_range():
+            try:
+                start, end = normalize_report_date_range(start_value.get().strip(), end_value.get().strip())
+                eligible_ids = eligible_report_questionnaires(start, end)
+            except ValueError as exc:
+                messagebox.showerror("Invalid report range", str(exc), parent=dialog)
+                return
+            if not eligible_ids:
+                messagebox.showinfo(
+                    "Report unavailable",
+                    "No check-ins are available in that date range.",
+                    parent=dialog,
+                )
+                return
+            dialog.destroy()
+            self.choose_output_questionnaires(
+                "Choose report questionnaires",
+                lambda selected_ids: self._create_report_for(selected_ids, start, end),
+                eligible_ids,
             )
+
+        controls = Frame(dialog)
+        controls.pack(fill="x", padx=12, pady=12)
+        Button(controls, text="Continue", command=confirm_range).pack(side=LEFT, padx=4)
+        Button(controls, text="Cancel", command=dialog.destroy).pack(side=LEFT, padx=4)
+
+    def _create_report_for(self, selected_ids, start=None, end=None):
+        try:
+            if start is None or end is None:
+                start, end = (
+                    available_report_date_range()
+                    if selected_ids == QUESTIONNAIRE_ORDER
+                    else available_report_date_range(selected_ids)
+                )
+            else:
+                start, end = normalize_report_date_range(start, end)
+                ineligible = [
+                    questionnaire_id
+                    for questionnaire_id in selected_ids
+                    if questionnaire_id not in eligible_report_questionnaires(start, end)
+                ]
+                if ineligible:
+                    raise ValueError(
+                        f"No check-ins are available for {QUESTIONNAIRES[ineligible[0]].display_name} in that date range."
+                    )
         except ValueError as exc:
             messagebox.showinfo("Report unavailable", str(exc))
             return
@@ -3415,9 +4951,16 @@ def main():
     parser.add_argument("--import", dest="import_path", help="Import an Excel workbook, then exit unless --launch is also set.")
     parser.add_argument("--launch", action="store_true", help="Launch the GUI after command-line actions.")
     parser.add_argument("--report-pdf", help="Generate a full-history PDF report at this output path.")
+    parser.add_argument("--report-start", help="First report date in YYYY-MM-DD format; use with --report-end.")
+    parser.add_argument("--report-end", help="Last report date in YYYY-MM-DD format; use with --report-start.")
     parser.add_argument("--analysis-export", help="Export a normalized analysis-ready XLSX workbook, then exit.")
     parser.add_argument("--questionnaires", help="Comma-separated questionnaire IDs to include in generated outputs.")
     args = parser.parse_args()
+
+    if bool(args.report_start) != bool(args.report_end):
+        parser.error("--report-start and --report-end must be provided together.")
+    if (args.report_start or args.report_end) and not args.report_pdf:
+        parser.error("--report-start and --report-end require --report-pdf.")
 
     init_db()
     selected_ids = normalize_questionnaire_selection(args.questionnaires.split(",") if args.questionnaires else None)
@@ -3426,9 +4969,25 @@ def main():
         print(f"Imported or updated {count} entries.")
     if args.report_pdf:
         pdf_path = Path(args.report_pdf)
-        start, end = available_report_date_range(selected_ids)
+        if args.report_start and args.report_end:
+            start, end = normalize_report_date_range(args.report_start, args.report_end)
+            ineligible = [
+                questionnaire_id
+                for questionnaire_id in selected_ids
+                if questionnaire_id not in eligible_report_questionnaires(start, end)
+            ]
+            if ineligible:
+                raise ValueError(
+                    f"No check-ins are available for {QUESTIONNAIRES[ineligible[0]].display_name} in that date range."
+                )
+        else:
+            start, end = available_report_date_range(selected_ids)
         generate_report(start, end, str(pdf_path), selected_ids)
-        print(f"Saved report to {pdf_path}")
+        selected_labels = ", ".join(
+            f"{QUESTIONNAIRES[questionnaire_id].display_name} v{QUESTIONNAIRES[questionnaire_id].definition_version}"
+            for questionnaire_id in selected_ids
+        )
+        print(f"Saved report to {pdf_path} ({start} to {end}; {selected_labels})")
     if args.analysis_export:
         export_analysis_workbook(args.analysis_export, selected_ids)
         print(f"Saved analysis workbook to {args.analysis_export}")

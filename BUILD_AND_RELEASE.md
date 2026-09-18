@@ -9,7 +9,7 @@ Last substantive update: 2026-09-18
 
 Only the latest published alpha is supported. `v0.4.0-alpha.1`, `v0.3.0-alpha.1`, and earlier prereleases remain downloadable as frozen historical records; do not rebuild, overwrite, relabel, or transfer their validation evidence to a newer candidate.
 
-Release preparation for `v0.5.0-alpha.1` is authorized, but it is not public. Its planned portable asset is `Len-Portable-0.5.0-alpha.1.zip`; build-source commit, byte size, ZIP entry count, uncompressed size, SHA-256, signature inspection, Defender results, and exact-candidate validation evidence remain pending until the candidate is built once and frozen. See the [candidate record and draft release notes](docs/releases/v0.5.0-alpha.1.md). Do not advertise `v0.5.0-alpha.1` as available before separate publication approval.
+Release preparation for `v0.5.0-alpha.1` is authorized, but it is not public. The frozen portable candidate is `Len-Portable-0.5.0-alpha.1.zip` (43,700,470 bytes; 1,880 ZIP entries; 1,847 file entries; 96,340,466 uncompressed file bytes; SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`; `NotSigned`). It was built from protected-main merge `9e556e9080455aaa66cb398d37bd7fa8082ba5b1` with controlled Python 3.12.10 and Tcl/Tk 8.6.15, and exact-candidate validation is complete. See the [candidate record and draft release notes](docs/releases/v0.5.0-alpha.1.md). Do not advertise `v0.5.0-alpha.1` as available before separate publication approval.
 
 Do not create a tag, GitHub Release, upload, or public announcement merely because the source and candidate tests pass. Repository visibility, source publication, binary distribution, and social-media promotion are separate owner decisions.
 
@@ -192,6 +192,14 @@ Update these together for each release:
 ## Current Validation Status
 
 Iteration 014 passes 106 tests in the controlled project environment, including a closed-database backup/restore/re-migration regression, plus application/test compilation and Git whitespace validation. Focused persistence (16) and report/privacy (4) runs also pass. Dan completed and reported **PASS** for the required isolated Windows keyboard/reduced-window source walkthrough with fictional data. Iteration 014 is complete, but the versioned questionnaire framework remains unreleased; no package, release, or public artifact inherits this source validation.
+
+### Len validated candidate - 0.5.0-alpha.1
+
+The daily-severity correction passed 39 focused tests, 104 affected-subsystem tests, and the 109-test full suite; required Windows Python 3.12 CI passed on PR #6. The clean release checkout at `9e556e9080455aaa66cb398d37bd7fa8082ba5b1` repeated all 109 tests and passed compilation, controlled-input checks, and license verification with 34 notices for 11 pinned packages.
+
+The frozen candidate is `Len-Portable-0.5.0-alpha.1.zip` (43,700,470 bytes; 1,880 ZIP entries; 1,847 files; 96,340,466 uncompressed file bytes; SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`; `NotSigned`). Static hygiene/privacy/license checks, exact ZIP/executable Defender scans, direct and portable execution, storage routing, fictional pre-Iteration-014 migration, restart persistence, reset, v1/v2 semantics, CRUD, Review, PDF, workbook, and packaged CLI checks passed. The seven-page PDF and relevant sheets from the eight-sheet workbook were rendered and inspected; structural and privacy scans passed. Dan completed the requested hands-on exact-candidate UI review on September 18, 2026 and reported **PASS** with no issues. The final candidate hash remained unchanged.
+
+The privacy-failure candidate `8DFF588068B50D6D351DC59ADF4B6359CE90FF2F70079C2E7A3BB4ADF9BB99C7` and superseded semantics-regression candidate `D4D1C7DC9FC1BA0CB1C43FB63EF0A7CF1A00FB6C6F318D414E9A409E8C5CDCD1` remain permanently rejected; none of their evidence transfers. The validated candidate is still unpublished. No tag, GitHub release, upload, or publication is authorized without Dan's separate explicit approval.
 
 ### Len public prerelease - 0.4.1-alpha.1
 

@@ -13,9 +13,9 @@ The project began as a personal response to the **Tyranny of Temporal Distance**
 
 ## Maturity and Availability
 
-The first Len-branded public prerelease, [`v0.4.0-alpha.1`](https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.4.0-alpha.1), is available for Windows 11 64-bit. It is alpha/pre-release software, not a finished or clinically validated product. The published artifact was built from commit `c98c258`; the later documentation commit referenced by the release and tag is `b9b4aaaa`. Recorded validation includes 68 automated tests, exact-archive and licensing checks, direct and portable startup/storage checks, fictional packaged PDF/workbook generation, rendered-output inspection, and Windows Defender scans. A separate owner-performed hands-on exact-hash GUI walkthrough is not recorded for this artifact, and separate-machine validation was not performed. This evidence does not guarantee that the software will work on every computer or be useful for every person.
+The current public prerelease, [`v0.4.1-alpha.1`](https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.4.1-alpha.1), is available for Windows 11 64-bit. It is alpha/pre-release software, not a finished or clinically validated product. Its exact candidate passed 68 automated tests, exact-archive and licensing checks, Windows Defender scans, and authorized separate-Windows direct/portable launch, storage, persistence, PDF, and workbook validation. The executable remains unsigned. This evidence does not guarantee that the software will work on every computer or be useful for every person.
 
-The official public binary is [`Len-Portable-0.4.0-alpha.1.zip`](https://github.com/DScannellWiz/len-mental-health/releases/download/v0.4.0-alpha.1/Len-Portable-0.4.0-alpha.1.zip), with SHA-256 `38B17A47C9EC78F2568FAAE9DDAFC4B721C846D3BFD849766C92FBD5A6FBA277`. The existing `v0.3.0-alpha.1` tag and `PHQ9Tracker-Portable-0.3.0-alpha.1*` files remain frozen Mental Health Tracker-era records and are not rebuilt, overwritten, or relabeled. Do not download executables or ZIP files from reposts or unofficial mirrors.
+The official public binary is [`Len-Portable-0.4.1-alpha.1.zip`](https://github.com/DScannellWiz/len-mental-health/releases/download/v0.4.1-alpha.1/Len-Portable-0.4.1-alpha.1.zip), 43,806,172 bytes, with SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`. Only the latest published alpha is supported. `v0.4.0-alpha.1`, `v0.3.0-alpha.1`, and earlier prereleases remain downloadable as frozen historical records; they are not rebuilt, overwritten, relabeled, or maintained as current versions. Do not download executables or ZIP files from reposts or unofficial mirrors.
 
 ## Current Features
 
@@ -114,7 +114,7 @@ If you may be in immediate danger or need urgent help, contact local emergency s
 - [Contributing Guide](CONTRIBUTING.md) defines the development workflow, validation expectations, and fictional-data-only rule.
 - [Support Guide](SUPPORT.md) routes ordinary software questions and protects the project's medical and privacy boundaries.
 - [Community Code of Conduct](CODE_OF_CONDUCT.md) defines participation and enforcement expectations.
-- [v0.4.0-alpha.1 Release Record and GitHub Release Notes](docs/releases/v0.4.0-alpha.1.md) records the exact artifact evidence, publication state, validation boundaries, and post-publication download verification.
+- [v0.4.1-alpha.1 Release Record and GitHub Release Notes](docs/releases/v0.4.1-alpha.1.md) records the exact current public artifact evidence, publication state, validation boundaries, and post-publication download verification.
 - [Historical Closed Alpha Documentation](docs/alpha/README.md) preserves an abandoned private testing plan as provenance. It is not an active enrollment, support, or release workflow.
 
 ## License

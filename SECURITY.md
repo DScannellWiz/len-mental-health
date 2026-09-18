@@ -4,10 +4,13 @@
 
 | Version | Supported | Status |
 | --- | --- | --- |
-| `0.4.0-alpha.1` | Yes | Current public prerelease |
+| `0.4.1-alpha.1` | Yes | Current public prerelease |
+| `0.4.0-alpha.1` | No | Frozen historical prerelease |
 | `0.3.0-alpha.1` | No | Frozen historical release |
 
-The public `0.4.0-alpha.1` portable artifact was built from commit `c98c258c60f672f99a769a58a260de92484a4515`; the later release/tag commit is `b9b4aaaa3c8339183c32ca7dda7c18ea83150ec8`. The artifact is not code-signed, has not received a formal third-party security audit or separate-machine validation, and should not be treated as a clinically validated or regulated product. A separate owner-performed hands-on exact-hash GUI walkthrough is not recorded for this artifact and is not claimed.
+Only the latest published alpha is supported. When a newer alpha is published, earlier prereleases remain downloadable as frozen historical records but are not maintained as supported current versions.
+
+The public `0.4.1-alpha.1` portable artifact is 43,806,172 bytes with SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`; its release/tag commit is `6c199cc166ac4e107924f0134249c369f0c233dc`. The artifact is not code-signed and has not received a formal third-party security audit. It passed exact-candidate validation on an authorized separate Windows environment but should not be treated as a clinically validated or regulated product.
 
 ## Reporting a Software Security Issue
 

@@ -4,13 +4,14 @@
 
 | Version | Supported | Status |
 | --- | --- | --- |
-| `0.4.1-alpha.1` | Yes | Current public prerelease |
+| `0.5.0-alpha.1` | Yes | Current public prerelease |
+| `0.4.1-alpha.1` | No | Frozen historical prerelease |
 | `0.4.0-alpha.1` | No | Frozen historical prerelease |
 | `0.3.0-alpha.1` | No | Frozen historical release |
 
 Only the latest published alpha is supported. When a newer alpha is published, earlier prereleases remain downloadable as frozen historical records but are not maintained as supported current versions.
 
-The public `0.4.1-alpha.1` portable artifact is 43,806,172 bytes with SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`; its release/tag commit is `6c199cc166ac4e107924f0134249c369f0c233dc`. The artifact is not code-signed and has not received a formal third-party security audit. It passed exact-candidate validation on an authorized separate Windows environment but should not be treated as a clinically validated or regulated product.
+The public `0.5.0-alpha.1` portable artifact is 43,700,470 bytes with SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`; its tag targets `1fe8af87fe2fb22e73de474a70708f25119e491a`. The artifact is not code-signed and has not received a formal third-party security audit. It passed exact-candidate validation, including the owner's hands-on UI review, but should not be treated as a clinically validated or regulated product.
 
 ## Reporting a Software Security Issue
 

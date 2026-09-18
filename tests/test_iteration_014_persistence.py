@@ -34,7 +34,7 @@ class Iteration014PersistenceTests(unittest.TestCase):
                 """
                 SELECT questionnaire_id, definition_version, definition_json, definition_sha256
                 FROM questionnaire_definition_snapshots
-                ORDER BY questionnaire_id
+                ORDER BY questionnaire_id, definition_version
                 """
             ).fetchall()
 
@@ -53,13 +53,21 @@ class Iteration014PersistenceTests(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual([(row[0], row[1]) for row in snapshots], [("gad7", 1), ("phq9", 1)])
+        self.assertEqual(
+            [(row[0], row[1]) for row in snapshots],
+            [("gad7", 1), ("gad7", 2), ("phq9", 1), ("phq9", 2)],
+        )
         for questionnaire_id, definition_version, payload, recorded_hash in snapshots:
+            expected = (
+                app.QUESTIONNAIRES[questionnaire_id]
+                if definition_version == 2
+                else app.LEGACY_BUILTIN_DEFINITIONS[questionnaire_id]
+            )
             self.assertEqual(recorded_hash, hashlib.sha256(payload.encode("utf-8")).hexdigest())
-            self.assertEqual(payload, app.serialize_questionnaire_definition(app.QUESTIONNAIRES[questionnaire_id]))
+            self.assertEqual(payload, app.serialize_questionnaire_definition(expected))
             self.assertEqual(
                 app.load_questionnaire_definition_snapshot(questionnaire_id, definition_version, self.db_path),
-                app.QUESTIONNAIRES[questionnaire_id],
+                expected,
             )
 
     def test_snapshot_and_migration_records_are_database_immutable(self):
@@ -84,7 +92,7 @@ class Iteration014PersistenceTests(unittest.TestCase):
                     definitions=(conflicting, app.QUESTIONNAIRES["gad7"]),
                 )
         self.assertEqual(
-            app.load_questionnaire_definition_snapshot("phq9", 1, self.db_path),
+            app.load_questionnaire_definition_snapshot("phq9", 2, self.db_path),
             app.QUESTIONNAIRES["phq9"],
         )
 
@@ -397,8 +405,8 @@ class Iteration014PersistenceTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].items, [0, 1, 2, 3, 0, 1, 2])
         self.assertEqual(rows[0].notes, "original")
-        self.assertEqual(rows[0].definition_version, 1)
-        self.assertEqual({record["definition_version"] for record in profile}, {1})
+        self.assertEqual(rows[0].definition_version, 2)
+        self.assertEqual({record["definition_version"] for record in profile}, {2})
 
     def test_c3_falls_back_for_an_unmigrated_legacy_database(self):
         app.init_db(self.db_path)

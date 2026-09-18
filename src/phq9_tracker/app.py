@@ -549,18 +549,27 @@ def deserialize_questionnaire_definition(payload: str) -> QuestionnaireDefinitio
     return validate_questionnaire_definition(definition)
 
 
-STANDARD_RESPONSE_OPTIONS = tuple(
+LEGACY_FREQUENCY_RESPONSE_OPTIONS = tuple(
     ResponseOption(value=value, label=label, score=value)
     for value, label in enumerate(("Not at all", "Several days", "More than half the days", "Nearly every day"))
 )
+DAILY_SEVERITY_RESPONSE_OPTIONS = tuple(
+    ResponseOption(value=value, label=label, score=value)
+    for value, label in enumerate(("Not present", "Mild", "Moderate", "High"))
+)
+DAILY_SEVERITY_INSTRUCTION = "For today, rate how severe each symptom was from 0 (not present) to 3 (high)."
 
 
-def _builtin_questions(questionnaire_id: str, labels: list[str]) -> tuple[QuestionDefinition, ...]:
+def _builtin_questions(
+    questionnaire_id: str,
+    labels: list[str],
+    response_options: tuple[ResponseOption, ...],
+) -> tuple[QuestionDefinition, ...]:
     return tuple(
         QuestionDefinition(
             question_id=f"{questionnaire_id}.item{index}",
             prompt=label,
-            options=STANDARD_RESPONSE_OPTIONS,
+            options=response_options,
             behavior_ids=("phq9_item9_context",) if questionnaire_id == "phq9" and index == 9 else (),
             report_label=label,
         )
@@ -569,49 +578,80 @@ def _builtin_questions(questionnaire_id: str, labels: list[str]) -> tuple[Questi
 
 
 PHQ_SCREENER_SOURCE_URL = "https://www.phqscreeners.com/select-screener"
-ASSESSMENTS = {
-    "phq9": QuestionnaireDefinition(
+
+
+def _builtin_definition(
+    questionnaire_id: str,
+    definition_version: int,
+    display_name: str,
+    description: str,
+    item_labels: list[str],
+    score_max: int,
+    response_options: tuple[ResponseOption, ...],
+    timeframe_text: str,
+) -> QuestionnaireDefinition:
+    return QuestionnaireDefinition(
+        questionnaire_id=questionnaire_id,
+        definition_version=definition_version,
+        display_name=display_name,
+        short_name=display_name,
+        description=description,
+        timeframe_text=timeframe_text,
+        source_citation=description,
+        source_url=PHQ_SCREENER_SOURCE_URL,
+        rights_status="Redistributable built-in",
+        rights_source_url=PHQ_SCREENER_SOURCE_URL,
+        required_notice="",
+        origin="builtin",
+        items=_builtin_questions(questionnaire_id, item_labels, response_options),
+        scoring_rule="sum",
+        score_min=0,
+        score_max=score_max,
+        profile_rule="symptom_presence_14d",
+        interpretation_policy="validated_builtin",
+    )
+
+
+LEGACY_BUILTIN_DEFINITIONS = {
+    "phq9": _builtin_definition(
         questionnaire_id="phq9",
         definition_version=1,
         display_name="PHQ-9",
-        short_name="PHQ-9",
         description="Patient Health Questionnaire-9",
-        timeframe_text="Record responses for the selected check-in date.",
-        source_citation="Patient Health Questionnaire-9",
-        source_url=PHQ_SCREENER_SOURCE_URL,
-        rights_status="Redistributable built-in",
-        rights_source_url=PHQ_SCREENER_SOURCE_URL,
-        required_notice="",
-        origin="builtin",
-        items=_builtin_questions("phq9", PHQ9_ITEM_LABELS),
-        scoring_rule="sum",
-        score_min=0,
+        item_labels=PHQ9_ITEM_LABELS,
         score_max=27,
-        profile_rule="symptom_presence_14d",
-        interpretation_policy="validated_builtin",
+        response_options=LEGACY_FREQUENCY_RESPONSE_OPTIONS,
+        timeframe_text="Record responses for the selected check-in date.",
     ),
-    "gad7": QuestionnaireDefinition(
+    "gad7": _builtin_definition(
         questionnaire_id="gad7",
         definition_version=1,
         display_name="GAD-7",
-        short_name="GAD-7",
         description="Generalized Anxiety Disorder-7",
-        timeframe_text="Record responses for the selected check-in date.",
-        source_citation="Generalized Anxiety Disorder-7",
-        source_url=PHQ_SCREENER_SOURCE_URL,
-        rights_status="Redistributable built-in",
-        rights_source_url=PHQ_SCREENER_SOURCE_URL,
-        required_notice="",
-        origin="builtin",
-        items=_builtin_questions("gad7", GAD7_ITEM_LABELS),
-        scoring_rule="sum",
-        score_min=0,
+        item_labels=GAD7_ITEM_LABELS,
         score_max=21,
-        profile_rule="symptom_presence_14d",
-        interpretation_policy="validated_builtin",
+        response_options=LEGACY_FREQUENCY_RESPONSE_OPTIONS,
+        timeframe_text="Record responses for the selected check-in date.",
     ),
 }
-for _definition in ASSESSMENTS.values():
+ASSESSMENTS = {
+    questionnaire_id: _builtin_definition(
+        questionnaire_id=questionnaire_id,
+        definition_version=2,
+        display_name=legacy.display_name,
+        description=legacy.description,
+        item_labels=legacy.item_labels,
+        score_max=int(legacy.score_max),
+        response_options=DAILY_SEVERITY_RESPONSE_OPTIONS,
+        timeframe_text=DAILY_SEVERITY_INSTRUCTION,
+    )
+    for questionnaire_id, legacy in LEGACY_BUILTIN_DEFINITIONS.items()
+}
+BUILTIN_DEFINITION_SNAPSHOTS = (
+    *LEGACY_BUILTIN_DEFINITIONS.values(),
+    *ASSESSMENTS.values(),
+)
+for _definition in BUILTIN_DEFINITION_SNAPSHOTS:
     validate_questionnaire_definition(_definition)
 
 ASSESSMENT_ORDER = ["phq9", "gad7"]
@@ -777,9 +817,28 @@ def _backfill_normalized_questionnaire_entries(conn: sqlite3.Connection) -> None
     for row in legacy_rows:
         questionnaire_id, entry_date = row[0], row[1]
         try:
-            definition = QUESTIONNAIRES[questionnaire_id]
+            legacy_definition = LEGACY_BUILTIN_DEFINITIONS[questionnaire_id]
+            active_definition = QUESTIONNAIRES[questionnaire_id]
         except KeyError as exc:
             raise RuntimeError(f"Cannot backfill unknown questionnaire: {questionnaire_id}") from exc
+
+        existing_submission = conn.execute(
+            """
+            SELECT definition_version
+            FROM questionnaire_submissions
+            WHERE questionnaire_id = ? AND entry_date = ?
+            """,
+            (questionnaire_id, entry_date),
+        ).fetchone()
+        if existing_submission is None or existing_submission[0] == legacy_definition.definition_version:
+            definition = legacy_definition
+        elif existing_submission[0] == active_definition.definition_version:
+            definition = active_definition
+        else:
+            raise RuntimeError(
+                "Cannot reconcile unsupported questionnaire definition version: "
+                f"{questionnaire_id} v{existing_submission[0]}."
+            )
 
         stored_items = list(row[2:11])
         responses = stored_items[: definition.item_count]
@@ -873,7 +932,7 @@ def apply_schema_migrations(
     """Apply known migrations and exact definition snapshots as one transaction."""
     if conn.in_transaction:
         raise RuntimeError("Schema migrations require a connection without an active transaction.")
-    definitions = tuple(QUESTIONNAIRES.values()) if definitions is None else definitions
+    definitions = BUILTIN_DEFINITION_SNAPSHOTS if definitions is None else definitions
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("BEGIN IMMEDIATE")
     try:
@@ -1035,6 +1094,16 @@ def display_questionnaire_response(question: QuestionDefinition, response: str |
         if option.value == response:
             return questionnaire_response_display(option)
     raise ValueError(f"Unknown response for {question.question_id}.")
+
+
+def user_facing_response_label(
+    definition: QuestionnaireDefinition,
+    option: ResponseOption,
+) -> str:
+    """Avoid presenting the known-regressed v1 labels as daily-severity meaning."""
+    if definition.questionnaire_id in LEGACY_BUILTIN_DEFINITIONS and definition.definition_version == 1:
+        return str(option.value)
+    return option.label
 
 
 def questionnaire_completion_status(entry_date: str) -> dict[str, str]:
@@ -2588,7 +2657,7 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
                     "item_number": item_number,
                     "item_label": question.report_label or question.prompt,
                     "response_value": response_value,
-                    "response_label": response_option.label,
+                    "response_label": user_facing_response_label(definition, response_option),
                     "response_score": response_option.score if response_option.score is not None else "",
                     "symptom_present": (
                         bool(response_option.score > 0) if response_option.score is not None else ""
@@ -3909,9 +3978,18 @@ class PHQ9App(Tk):
                 padx=10,
                 pady=8,
             ).grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 8))
+            Label(
+                box,
+                text=definition.timeframe_text,
+                bg="#F8FAFC",
+                fg="#172033",
+                wraplength=940,
+                justify=LEFT,
+                font=("Segoe UI", 10, "bold"),
+            ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
             for idx, question in enumerate(definition.items, start=1):
                 Label(box, text=f"{idx}. {question.report_label or question.prompt}", bg="#F8FAFC", wraplength=650, justify=LEFT).grid(
-                    row=idx, column=0, sticky="w", pady=3
+                    row=idx + 1, column=0, sticky="w", pady=3
                 )
                 var = StringVar(value=UNANSWERED_RESPONSE)
                 self.assessment_item_vars[assessment_id].append(var)
@@ -3921,7 +3999,7 @@ class PHQ9App(Tk):
                     values=questionnaire_response_choices(question),
                     state="readonly",
                     width=34,
-                ).grid(row=idx, column=1, sticky="w", padx=8, pady=3)
+                ).grid(row=idx + 1, column=1, sticky="w", padx=8, pady=3)
         assessment_area.columnconfigure(0, weight=1)
         self.update_questionnaire_visibility()
 

@@ -1,5 +1,5 @@
-Current as of: 2026-09-17
-Last substantive update: 2026-09-17
+Current as of: 2026-09-18
+Last substantive update: 2026-09-18
 
 # Len
 
@@ -19,7 +19,7 @@ The official public binary is [`Len-Portable-0.4.1-alpha.1.zip`](https://github.
 
 ## Current Features
 
-- A definition-driven Today's Check-In with a compact questionnaire roster, one active form at a time, and independent PHQ-9/GAD-7 completion status for each date.
+- A definition-driven Today's Check-In with a compact questionnaire roster, one active form at a time, explicit daily-severity guidance, and `Not present / Mild / Moderate / High` choices for both PHQ-9 and GAD-7.
 - Explicit unanswered choices, with one saved submission per questionnaire per calendar date and deliberate same-day saves updating that submission.
 - A universal safety message before the first question and in every PDF footer; PHQ-9 item 9 context remains PHQ-9-only.
 - Previous Day and Next Day navigation, existing-date loading, future-date prevention, and unsaved-change protection.

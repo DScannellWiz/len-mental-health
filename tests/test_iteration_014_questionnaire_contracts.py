@@ -56,7 +56,7 @@ class Iteration014QuestionnaireContractTests(unittest.TestCase):
         for questionnaire_id, (labels, maximum) in expected.items():
             definition = app.validate_questionnaire_definition(app.QUESTIONNAIRES[questionnaire_id])
             self.assertEqual(definition.assessment_id, questionnaire_id)
-            self.assertEqual(definition.definition_version, 1)
+            self.assertEqual(definition.definition_version, 2)
             self.assertEqual(definition.item_labels, labels)
             self.assertEqual(definition.item_count, len(labels))
             self.assertEqual(definition.max_score, maximum)
@@ -70,8 +70,29 @@ class Iteration014QuestionnaireContractTests(unittest.TestCase):
             for item in definition.items:
                 self.assertEqual([option.value for option in item.options], [0, 1, 2, 3])
                 self.assertEqual([option.score for option in item.options], [0, 1, 2, 3])
+                self.assertEqual(
+                    [option.label for option in item.options],
+                    ["Not present", "Mild", "Moderate", "High"],
+                )
+            self.assertEqual(definition.timeframe_text, app.DAILY_SEVERITY_INSTRUCTION)
         with self.assertRaises(FrozenInstanceError):
             app.QUESTIONNAIRES["phq9"].display_name = "Changed"
+
+    def test_v1_snapshots_remain_exact_immutable_provenance_but_labels_are_not_user_interpretation(self):
+        expected_regressed_labels = [
+            "Not at all",
+            "Several days",
+            "More than half the days",
+            "Nearly every day",
+        ]
+        for questionnaire_id in ("phq9", "gad7"):
+            definition = app.LEGACY_BUILTIN_DEFINITIONS[questionnaire_id]
+            self.assertEqual(definition.definition_version, 1)
+            self.assertEqual([option.label for option in definition.items[0].options], expected_regressed_labels)
+            self.assertEqual(
+                [app.user_facing_response_label(definition, option) for option in definition.items[0].options],
+                ["0", "1", "2", "3"],
+            )
 
     def test_phq9_item9_behavior_is_attached_only_to_stable_phq9_item_id(self):
         phq9 = app.QUESTIONNAIRES["phq9"]
@@ -308,13 +329,16 @@ class Iteration014QuestionnaireContractTests(unittest.TestCase):
         self.assertIn("does not define a 14-day item profile", app.questionnaire_profile_omission_reason(definition))
 
     def test_total_trends_split_definition_versions_instead_of_blending_them(self):
-        version_two = replace(app.QUESTIONNAIRES["phq9"], definition_version=2)
         entries = [
             app.AssessmentEntryRow(1, "phq9", "2026-01-01", [0] * 9, 0, "Minimal", "", definition_version=1),
             app.AssessmentEntryRow(2, "phq9", "2026-01-02", [1] * 9, 9, "Mild", "", definition_version=2),
         ]
 
-        with patch.object(app, "load_questionnaire_definition_snapshot", return_value=version_two):
+        with patch.object(
+            app,
+            "load_questionnaire_definition_snapshot",
+            return_value=app.LEGACY_BUILTIN_DEFINITIONS["phq9"],
+        ):
             series = app.build_questionnaire_trend_series("phq9", entries)
 
         self.assertEqual([item.definition.definition_version for item in series], [1, 2])

@@ -1,4 +1,3 @@
-import hashlib
 import importlib
 import io
 import sqlite3
@@ -6,7 +5,6 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -33,23 +31,12 @@ class Iteration014ReportTests(unittest.TestCase):
         app.upsert_assessment_entry("gad7", "2026-09-09", [0, 1, 0, 0, 0, 0, 0])
         app.upsert_assessment_entry("gad7", "2026-09-10", [1, 1, 0, 0, 0, 0, 0])
 
-    def move_gad7_record_to_version_two(self):
-        definition = replace(app.QUESTIONNAIRES["gad7"], definition_version=2)
-        payload = app.serialize_questionnaire_definition(definition)
-        payload_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    def move_gad7_record_to_version_one(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO questionnaire_definition_snapshots (
-                    questionnaire_id, definition_version, definition_json, definition_sha256
-                ) VALUES (?, ?, ?, ?)
-                """,
-                ("gad7", 2, payload, payload_hash),
-            )
-            conn.execute(
-                """
                 UPDATE questionnaire_submissions
-                SET definition_version = 2
+                SET definition_version = 1
                 WHERE questionnaire_id = 'gad7' AND entry_date = '2026-09-10'
                 """
             )
@@ -68,21 +55,31 @@ class Iteration014ReportTests(unittest.TestCase):
 
     def test_workbook_rows_and_metadata_preserve_exact_definition_versions(self):
         self.add_fictional_records()
-        self.move_gad7_record_to_version_two()
+        self.move_gad7_record_to_version_one()
 
         workbook = app._analysis_workbook_data()
         daily_versions = {
             (row["assessment_id"], row["entry_date"]): row["definition_version"]
             for row in workbook["Daily Assessments"]
         }
-        self.assertEqual(daily_versions[("phq9", "2026-09-01")], 1)
-        self.assertEqual(daily_versions[("gad7", "2026-09-10")], 2)
+        self.assertEqual(daily_versions[("phq9", "2026-09-01")], 2)
+        self.assertEqual(daily_versions[("gad7", "2026-09-10")], 1)
         self.assertEqual(
             {row["question_id"] for row in workbook["Item Responses"] if row["assessment_id"] == "gad7"},
             {f"gad7.item{number}" for number in range(1, 8)},
         )
         metadata = {row["metadata_key"]: row["metadata_value"] for row in workbook["Metadata"]}
-        self.assertEqual(metadata["questionnaire_definition_versions"], "phq9:v1|gad7:v1|gad7:v2")
+        self.assertEqual(metadata["questionnaire_definition_versions"], "phq9:v2|gad7:v1|gad7:v2")
+        v1_labels = {
+            row["response_label"]
+            for row in workbook["Item Responses"]
+            if row["assessment_id"] == "gad7" and row["definition_version"] == 1
+        }
+        self.assertEqual(v1_labels, {"0", "1"})
+        self.assertFalse(
+            v1_labels
+            & {"Not at all", "Several days", "More than half the days", "Nearly every day"}
+        )
         self.assertEqual(metadata["safety_message"], app.UNIVERSAL_SAFETY_MESSAGE)
         self.assertEqual(metadata["non_diagnostic_notice"], app.NON_DIAGNOSTIC_OUTPUT_NOTICE)
         self.assertEqual(app.ANALYSIS_WORKBOOK_SCHEMA_VERSION, "1.2")
@@ -95,7 +92,7 @@ class Iteration014ReportTests(unittest.TestCase):
         except ImportError:
             self.skipTest("PDF text validation requires pypdf.")
         self.add_fictional_records()
-        self.move_gad7_record_to_version_two()
+        self.move_gad7_record_to_version_one()
         target = Path(self.tmp.name) / "fictional-gate-f.pdf"
 
         app.generate_report("2026-09-01", "2026-09-10", str(target))
@@ -130,7 +127,7 @@ class Iteration014ReportTests(unittest.TestCase):
             app.main()
 
         generate.assert_called_once_with("2026-09-10", "2026-09-10", str(target), ["gad7"])
-        self.assertIn("GAD-7 v1", output.getvalue())
+        self.assertIn("GAD-7 v2", output.getvalue())
 
 
 if __name__ == "__main__":

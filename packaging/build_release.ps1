@@ -108,6 +108,23 @@ foreach ($RequiredBundlePath in $RequiredBundlePaths) {
         throw "Built bundle is missing required Tcl/Tk content: $RequiredBundlePath"
     }
 }
+
+# The controlled runtime may contain redundant Tkinter bytecode caches whose
+# compiled filenames disclose the local runtime path. Remove only that copied
+# cache from the built bundle; do not mutate the controlled Python installation.
+$BundledTkinterCache = Join-Path $DistApp "_internal\tkinter\__pycache__"
+if (Test-Path -LiteralPath $BundledTkinterCache -PathType Container) {
+    Remove-Item -Recurse -Force -LiteralPath $BundledTkinterCache
+}
+
+& $Python (Join-Path $PSScriptRoot "verify_release_hygiene.py") `
+  $DistApp `
+  --forbid-root $Root `
+  --forbid-root $PythonBase
+if ($LASTEXITCODE -ne 0) {
+    throw "Release bundle hygiene verification failed."
+}
+
 Copy-Item -LiteralPath (Join-Path $Root "LICENSE") -Destination (Join-Path $DistApp "LICENSE")
 Copy-Item -Recurse -LiteralPath (Join-Path $Root "THIRD_PARTY_NOTICES") -Destination (Join-Path $DistApp "THIRD_PARTY_NOTICES")
 

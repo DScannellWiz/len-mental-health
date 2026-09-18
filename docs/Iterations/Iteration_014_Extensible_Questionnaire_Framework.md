@@ -396,4 +396,6 @@ At the C1 checkpoint, the immutable composite snapshot key and approved `(questi
 
 ## Remaining Work and Exact Next Action
 
-Gate G and Iteration 014 are complete. All planned automated and manual acceptance criteria passed. Commit, synchronization into the canonical checkout, push, pull request, packaging, signing, release, publication, and other GitHub activity remain separate owner-approval boundaries and have not begun.
+Gate G and Iteration 014 are complete. All planned automated and manual acceptance criteria passed, and the completed iteration is merged on protected `main` at `47a8655489dda4dfbf0e330f4139777156e034a7`.
+
+The separately authorized `v0.5.0-alpha.1` release-preparation phase is in progress. Release-facing documentation is being reconciled before a clean candidate build from the resulting merged `main`. The candidate filename is planned as `Len-Portable-0.5.0-alpha.1.zip`; its build-source commit, size, inventory, SHA-256, signature status, Defender results, and exact-candidate execution/output evidence remain pending. No tag, GitHub release, asset upload, or publication has occurred, and publication requires a later explicit owner approval.

@@ -26,13 +26,13 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Automated tests with a Windows/Python 3.12 continuous-integration workflow for pull requests and `main`.
 - Installer and portable build scripts.
 
-## Iteration 013: Dependency Security Remediation - Engineering Complete
+## Iteration 013: Dependency Security Remediation and v0.4.1-alpha.1 - Complete
 
 - Updated the controlled release/test dependency pins from Pillow 12.2.0 to 12.3.0 and pypdf 6.13.3 to 6.16.1, addressing all 23 inventoried alerts without changing application behavior or accepted inputs.
 - Refreshed the exact distributed Pillow license evidence and notice manifest.
 - Passed 68 automated tests, compilation, license verification, exact-package checks, Defender checks, and separate-environment direct/portable validation of the frozen `v0.4.1-alpha.1` candidate.
 - Preserved the local-first data model and existing database compatibility; no migration is required.
-- Prepared protected release documentation while leaving commit, push, tag, GitHub prerelease, upload, and public promotion subject to separate owner approval.
+- Published the unchanged exact candidate as the `v0.4.1-alpha.1` GitHub prerelease after protected documentation review, required CI, and owner approval. The tag targets release commit `6c199cc166ac4e107924f0134249c369f0c233dc`; the public asset remains 43,806,172 bytes with SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`.
 - Kept future questionnaire-framework and Windows code-signing planning outside this iteration.
 
 ## Iteration 014: Versioned Questionnaire Framework - Complete
@@ -45,6 +45,8 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Kept PHQ-9 and GAD-7 as the only built-in questionnaires. Any future built-in still requires explicit redistribution-rights and clinical-safety approval.
 - Deferred custom questionnaire authoring/import. A future custom instrument may explicitly select user-defined deterministic scoring through an allowlisted application-owned strategy, but Len will not automatically add clinical interpretation, severity bands, risk flags, diagnosis, or treatment narrative.
 - Automated regression/documentation closeout and the isolated Windows keyboard/reduced-window walkthrough are complete.
+- Release preparation for `v0.5.0-alpha.1` is in progress. Candidate build and exact-artifact validation remain pending, and no tag, GitHub release, asset upload, or publication has occurred.
+- After `v0.5.0-alpha.1` is published, it will become the only supported alpha; `v0.4.1-alpha.1` and earlier prereleases will remain downloadable as frozen historical records.
 
 ## Iteration 010: Extensible Questionnaire Framework - Implementation Complete
 

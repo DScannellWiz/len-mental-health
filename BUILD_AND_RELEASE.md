@@ -191,15 +191,17 @@ Update these together for each release:
 
 ## Current Validation Status
 
-Iteration 014 passes 106 tests in the controlled project environment, including a closed-database backup/restore/re-migration regression, plus application/test compilation and Git whitespace validation. Focused persistence (16) and report/privacy (4) runs also pass. Dan completed and reported **PASS** for the required isolated Windows keyboard/reduced-window source walkthrough with fictional data. Iteration 014 is complete, but the versioned questionnaire framework remains unreleased; no package, release, or public artifact inherits this source validation.
+Iteration 014 and its `v0.5.0-alpha.1` release are complete. The framework closeout passed 106 tests in the controlled project environment, including a closed-database backup/restore/re-migration regression, plus application/test compilation and Git whitespace validation. Focused persistence (16) and report/privacy (4) runs also passed. Dan completed and reported **PASS** for the required isolated Windows keyboard/reduced-window source walkthrough with fictional data. The later daily-severity correction and exact release candidate have the distinct validation evidence recorded below.
 
-### Len validated candidate - 0.5.0-alpha.1
+### Len public prerelease - 0.5.0-alpha.1
 
 The daily-severity correction passed 39 focused tests, 104 affected-subsystem tests, and the 109-test full suite; required Windows Python 3.12 CI passed on PR #6. The clean release checkout at `9e556e9080455aaa66cb398d37bd7fa8082ba5b1` repeated all 109 tests and passed compilation, controlled-input checks, and license verification with 34 notices for 11 pinned packages.
 
 The frozen candidate is `Len-Portable-0.5.0-alpha.1.zip` (43,700,470 bytes; 1,880 ZIP entries; 1,847 files; 96,340,466 uncompressed file bytes; SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`; `NotSigned`). Static hygiene/privacy/license checks, exact ZIP/executable Defender scans, direct and portable execution, storage routing, fictional pre-Iteration-014 migration, restart persistence, reset, v1/v2 semantics, CRUD, Review, PDF, workbook, and packaged CLI checks passed. The seven-page PDF and relevant sheets from the eight-sheet workbook were rendered and inspected; structural and privacy scans passed. Dan completed the requested hands-on exact-candidate UI review on September 18, 2026 and reported **PASS** with no issues. The final candidate hash remained unchanged.
 
-The privacy-failure candidate `8DFF588068B50D6D351DC59ADF4B6359CE90FF2F70079C2E7A3BB4ADF9BB99C7` and superseded semantics-regression candidate `D4D1C7DC9FC1BA0CB1C43FB63EF0A7CF1A00FB6C6F318D414E9A409E8C5CDCD1` remain permanently rejected; none of their evidence transfers. The validated candidate is still unpublished. No tag, GitHub release, upload, or publication is authorized without Dan's separate explicit approval.
+The privacy-failure candidate `8DFF588068B50D6D351DC59ADF4B6359CE90FF2F70079C2E7A3BB4ADF9BB99C7` and superseded semantics-regression candidate `D4D1C7DC9FC1BA0CB1C43FB63EF0A7CF1A00FB6C6F318D414E9A409E8C5CDCD1` remain permanently rejected; none of their evidence transfers and neither was published.
+
+Dan authorized publication on September 18, 2026. Tag `v0.5.0-alpha.1` targets evidence commit `1fe8af87fe2fb22e73de474a70708f25119e491a`, while the unchanged artifact retains build-source provenance `9e556e9080455aaa66cb398d37bd7fa8082ba5b1`. The GitHub release is marked prerelease and contains only `Len-Portable-0.5.0-alpha.1.zip`. An independent public download matched the expected filename, 43,700,470-byte size, and SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`; `origin/main` remained at the approved tag target throughout publication. The [release record](docs/releases/v0.5.0-alpha.1.md) preserves the complete evidence and boundaries.
 
 ### Len public prerelease - 0.4.1-alpha.1
 

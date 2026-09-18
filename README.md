@@ -13,9 +13,9 @@ The project began as a personal response to the **Tyranny of Temporal Distance**
 
 ## Maturity and Availability
 
-The current public prerelease, [`v0.4.1-alpha.1`](https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.4.1-alpha.1), is available for Windows 11 64-bit. It is alpha/pre-release software, not a finished or clinically validated product. Its exact candidate passed 68 automated tests, exact-archive and licensing checks, Windows Defender scans, and authorized separate-Windows direct/portable launch, storage, persistence, PDF, and workbook validation. The executable remains unsigned. This evidence does not guarantee that the software will work on every computer or be useful for every person.
+The current public prerelease, [`v0.5.0-alpha.1`](https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.5.0-alpha.1), is available for Windows 11 64-bit. It is alpha/pre-release software, not a finished or clinically validated product. Its exact candidate passed the 109-test full source and clean-release suites, exact-archive privacy and licensing checks, Windows Defender scans, direct and portable launch/storage/persistence checks, migration and reset checks, PDF/workbook/CLI validation, rendered-output inspection, and the owner's hands-on exact-candidate UI review. The executable remains unsigned. This evidence does not guarantee that the software will work on every computer or be useful for every person.
 
-The official public binary is [`Len-Portable-0.4.1-alpha.1.zip`](https://github.com/DScannellWiz/len-mental-health/releases/download/v0.4.1-alpha.1/Len-Portable-0.4.1-alpha.1.zip), 43,806,172 bytes, with SHA-256 `41C9F5DACB1523FE15730FDA21B014825B7D55141D1C754A31C951DF5AE5DE18`. Only the latest published alpha is supported. `v0.4.0-alpha.1`, `v0.3.0-alpha.1`, and earlier prereleases remain downloadable as frozen historical records; they are not rebuilt, overwritten, relabeled, or maintained as current versions. Do not download executables or ZIP files from reposts or unofficial mirrors.
+The official public binary is [`Len-Portable-0.5.0-alpha.1.zip`](https://github.com/DScannellWiz/len-mental-health/releases/download/v0.5.0-alpha.1/Len-Portable-0.5.0-alpha.1.zip), 43,700,470 bytes, with SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`. Only the latest published alpha is supported. `v0.4.1-alpha.1`, `v0.4.0-alpha.1`, `v0.3.0-alpha.1`, and earlier prereleases remain downloadable as frozen historical records; they are not rebuilt, overwritten, relabeled, or maintained as current versions. Do not download executables or ZIP files from reposts or unofficial mirrors.
 
 ## Current Features
 
@@ -114,7 +114,7 @@ If you may be in immediate danger or need urgent help, contact local emergency s
 - [Contributing Guide](CONTRIBUTING.md) defines the development workflow, validation expectations, and fictional-data-only rule.
 - [Support Guide](SUPPORT.md) routes ordinary software questions and protects the project's medical and privacy boundaries.
 - [Community Code of Conduct](CODE_OF_CONDUCT.md) defines participation and enforcement expectations.
-- [v0.4.1-alpha.1 Release Record and GitHub Release Notes](docs/releases/v0.4.1-alpha.1.md) records the exact current public artifact evidence, publication state, validation boundaries, and post-publication download verification.
+- [v0.5.0-alpha.1 Release Record and GitHub Release Notes](docs/releases/v0.5.0-alpha.1.md) records the exact current public artifact evidence, publication state, validation boundaries, rejected-candidate history, and post-publication download verification.
 - [Historical Closed Alpha Documentation](docs/alpha/README.md) preserves an abandoned private testing plan as provenance. It is not an active enrollment, support, or release workflow.
 
 ## License

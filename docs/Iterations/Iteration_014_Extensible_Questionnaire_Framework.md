@@ -1,10 +1,10 @@
-Current as of: 2026-09-17
+Current as of: 2026-09-18
 
 # Iteration 014 - Extensible Questionnaire Framework
 
 ## Status
 
-**Iteration 014 is complete. Gates A through G are closed.** Gate B established immutable definitions and application-owned strategies; Gate C added transactional migrations, immutable definition snapshots, normalized submissions/responses, verified backfill, normalized-first compatibility reads, and atomic compatibility writes. Gate D implemented the approved one-active-form Today interaction and atomic multi-questionnaire saves, then passed its required live Windows GUI validation. Gate E moved profiles and total-score trends behind declared definition capabilities without changing current PHQ-9/GAD-7 results. Gate F made report selection and outputs registry-driven, definition-version-aware, safety-preserving, and exact-artifact validated. Gate G added backup/restore regression coverage, reconciled the directly affected user, privacy, architecture, roadmap, and build documentation, and passed the required owner-run Windows keyboard/reduced-window walkthrough.
+**Iteration 014 is complete, Gates A through G are closed, and the validated outcome is published as `v0.5.0-alpha.1`.** Gate B established immutable definitions and application-owned strategies; Gate C added transactional migrations, immutable definition snapshots, normalized submissions/responses, verified backfill, normalized-first compatibility reads, and atomic compatibility writes. Gate D implemented the approved one-active-form Today interaction and atomic multi-questionnaire saves, then passed its required live Windows GUI validation. Gate E moved profiles and total-score trends behind declared definition capabilities without changing current PHQ-9/GAD-7 results. Gate F made report selection and outputs registry-driven, definition-version-aware, safety-preserving, and exact-artifact validated. Gate G added backup/restore regression coverage, reconciled the directly affected user, privacy, architecture, roadmap, and build documentation, and passed the required owner-run Windows keyboard/reduced-window walkthrough.
 
 - Development branch: `iteration-014-questionnaire-framework`
 - Frozen starting commit: `ecfe156324b751c49a36b2a7037d0e1f289a2e24`
@@ -396,9 +396,9 @@ At the C1 checkpoint, the immutable composite snapshot key and approved `(questi
 
 ## Remaining Work and Exact Next Action
 
-Gate G and Iteration 014 are complete. All planned automated and manual acceptance criteria passed, and the completed iteration is merged on protected `main` at `47a8655489dda4dfbf0e330f4139777156e034a7`.
+Gate G and Iteration 014 are complete. All planned automated and manual acceptance criteria passed, and the completed iteration merged on protected `main` at `47a8655489dda4dfbf0e330f4139777156e034a7`.
 
-The separately authorized `v0.5.0-alpha.1` release-preparation phase produced a frozen corrected candidate from protected-main merge `9e556e9080455aaa66cb398d37bd7fa8082ba5b1`. `Len-Portable-0.5.0-alpha.1.zip` is 43,700,470 bytes with 1,880 ZIP entries, 1,847 file entries, 96,340,466 uncompressed file bytes, SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`, and signature status `NotSigned`. Exact-candidate validation is complete, but no tag, GitHub release, asset upload, or publication has occurred; publication requires later explicit owner approval.
+The separately authorized `v0.5.0-alpha.1` release phase produced and published the frozen corrected candidate from protected-main build source `9e556e9080455aaa66cb398d37bd7fa8082ba5b1`. `Len-Portable-0.5.0-alpha.1.zip` is 43,700,470 bytes with 1,880 ZIP entries, 1,847 file entries, 96,340,466 uncompressed file bytes, SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`, and signature status `NotSigned`.
 
 ## Pre-release Daily-Severity Regression Correction
 
@@ -410,4 +410,6 @@ Correction validation on the regression branch: 39 focused definition/persistenc
 
 PR #6 passed required Windows Python 3.12 CI and merged normally. From that exact merge, the clean release checkout repeated all 109 tests before packaging. Fresh-candidate validation passed static hygiene/privacy/license checks, exact ZIP/executable Defender scans, direct and portable launch/storage routing, fictional pre-Iteration-014 migration and restart idempotence, reset, save/edit/note/delete and multi-questionnaire behavior, definition-version-aware Review/reporting, packaged CLI, and PDF/workbook rendering and privacy inspection. Historical v1 workbook responses retained their stored version but used only numeric daily-severity labels; v2 used the approved severity wording; the distinct 14-day frequency conversion and PHQ-9 Item 9 exclusivity remained intact.
 
-On 2026-09-18, Dan completed the requested hands-on UI review against the exact frozen candidate and reported **PASS** with no issues. No additional UI observation is claimed beyond that authoritative result. The candidate hash remained unchanged after validation. The earlier privacy-failure and semantics-regression candidates remain permanently rejected. Evidence documentation proceeds through protected main, while tag creation, GitHub release creation/editing, asset upload, and publication remain prohibited until separate owner approval.
+On 2026-09-18, Dan completed the requested hands-on UI review against the exact frozen candidate and reported **PASS** with no issues. No additional UI observation is claimed beyond that authoritative result. The candidate hash remained unchanged after validation. The earlier privacy-failure and semantics-regression candidates remain permanently rejected and were not published.
+
+Dan then explicitly authorized publication. Tag `v0.5.0-alpha.1` was created at evidence commit `1fe8af87fe2fb22e73de474a70708f25119e491a`, the GitHub release was created as a prerelease, and only the unchanged approved ZIP was uploaded. Independent public download verification confirmed the exact filename, 43,700,470-byte size, and SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`. The release endpoint is therefore closed; this post-publication documentation reconciliation does not rebuild the artifact or move the release tag.

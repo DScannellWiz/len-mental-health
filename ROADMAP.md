@@ -1,5 +1,5 @@
-Current as of: 2026-09-17
-Last substantive update: 2026-09-17
+Current as of: 2026-09-18
+Last substantive update: 2026-09-18
 
 # Roadmap
 
@@ -45,8 +45,8 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Kept PHQ-9 and GAD-7 as the only built-in questionnaires. Any future built-in still requires explicit redistribution-rights and clinical-safety approval.
 - Deferred custom questionnaire authoring/import. A future custom instrument may explicitly select user-defined deterministic scoring through an allowlisted application-owned strategy, but Len will not automatically add clinical interpretation, severity bands, risk flags, diagnosis, or treatment narrative.
 - Automated regression/documentation closeout and the isolated Windows keyboard/reduced-window walkthrough are complete.
-- Release preparation for `v0.5.0-alpha.1` is in progress. Candidate build and exact-artifact validation remain pending, and no tag, GitHub release, asset upload, or publication has occurred.
-- After `v0.5.0-alpha.1` is published, it will become the only supported alpha; `v0.4.1-alpha.1` and earlier prereleases will remain downloadable as frozen historical records.
+- Published the unchanged validated candidate as the [`v0.5.0-alpha.1`](https://github.com/DScannellWiz/len-mental-health/releases/tag/v0.5.0-alpha.1) GitHub prerelease after protected-main evidence review, required Windows Python 3.12 CI, owner approval, and independent public-download verification. Tag `v0.5.0-alpha.1` targets `1fe8af87fe2fb22e73de474a70708f25119e491a`; the public ZIP is 43,700,470 bytes with SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`.
+- `v0.5.0-alpha.1` is the only supported alpha. `v0.4.1-alpha.1` and earlier prereleases remain downloadable as frozen historical records.
 
 ## Iteration 010: Extensible Questionnaire Framework - Implementation Complete
 

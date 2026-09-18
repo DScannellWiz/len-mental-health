@@ -1,5 +1,20 @@
-Current as of: 2026-09-12
-Last substantive update: 2026-09-12
+Current as of: 2026-09-18
+Last substantive update: 2026-09-18
+
+BUG: Iteration 014 displayed frequency wording for daily severity responses
+
+Status: Corrected for the v0.5.0-alpha.1 pre-release; exact-candidate validation pending
+
+Iteration 014 introduced shared response labels reading `Not at all / Several days / More than half the days / Nearly every day` even though Len stores and totals each check-in as single-day symptom severity. PHQ-9 and GAD-7 were both affected. The separate derived 14-day symptom-frequency calculation was not affected.
+
+Resolution:
+
+- Added active PHQ-9 and GAD-7 definition v2 with `Not present / Mild / Moderate / High` labels and an explicit single-day severity instruction.
+- Preserved the immutable v1 snapshots and their hashes; existing and backfilled v1 records remain versioned as v1.
+- Prevented the known-regressed v1 frequency labels from appearing as historical daily-response interpretation by exporting numeric v1 `response_label` values.
+- Kept daily totals, the `> 0` symptom-present rule, 14-day frequency thresholds, version-separated analytics, and PHQ-9 Item 9 behavior unchanged.
+
+---
 
 ITERATION NOTE: Questionnaire selection and completion status
 

@@ -1,5 +1,5 @@
-Current as of: 2026-09-17
-Last substantive update: 2026-09-17
+Current as of: 2026-09-18
+Last substantive update: 2026-09-18
 
 # Build and Release Notes
 
@@ -123,7 +123,7 @@ Iteration 008.1 requires no schema migration. Chart callouts, guarded date loadi
 
 Iteration 008.2 requires no schema migration. It derives current 14-day item-profile records from existing assessment entries, corrects event-type display mapping, and changes only generated-output routing and Review conveniences.
 
-Iteration 014 adds two transactional, idempotent migrations: an append-only migration ledger with immutable questionnaire-definition snapshots, followed by normalized versioned questionnaire submissions/responses. Startup stores exact PHQ-9/GAD-7 v1 definitions, backfills from `assessment_entries`, and verifies identity, response shape/order/value/score, totals, severity, source, timestamps, and uniqueness before commit. Reads prefer verified normalized rows with an explicit legacy fallback. Writes keep normalized storage and `assessment_entries` atomic, and PHQ-9 writes also keep `phq9_entries` synchronized. The migration does not drop, rename, repurpose, or destructively rewrite either compatibility table.
+Iteration 014 adds two transactional, idempotent migrations: an append-only migration ledger with immutable questionnaire-definition snapshots, followed by normalized versioned questionnaire submissions/responses. Startup preserves exact PHQ-9/GAD-7 v1 snapshots, adds active v2 daily-severity definitions, backfills previously unnormalized compatibility rows against v1, and verifies identity, response shape/order/value/score, totals, severity, source, timestamps, and uniqueness before commit. Existing normalized v1/v2 rows reconcile against their stored definition version. Reads prefer verified normalized rows with an explicit legacy fallback. Writes keep normalized storage and `assessment_entries` atomic, and PHQ-9 writes also keep `phq9_entries` synchronized. The migration does not drop, rename, repurpose, or destructively rewrite either compatibility table.
 
 ## User Data During Backup and Updates
 
@@ -165,6 +165,7 @@ Update these together for each release:
 - Confirm existing PHQ-9 database rows migrate into `assessment_entries`.
 - Restore a closed-application pre-Iteration-014 database backup, launch again, and confirm the same historical rows migrate into the compatibility and normalized stores without duplication or loss.
 - Save a Today's Check-In with PHQ-9, GAD-7, notes, and optional treatment event.
+- Confirm both active questionnaires are definition v2, show `Not present / Mild / Moderate / High`, and place the single-day severity instruction immediately above the questions.
 - At a reduced supported window size, use the keyboard to move through the questionnaire roster and active definition-driven form; confirm unanswered required items are blocked, a selected zero is accepted, switching forms preserves unsaved answers, and one/both questionnaire saves retain independent completion state.
 - Navigate across month and year boundaries, confirm an existing date auto-loads, verify future dates are blocked, and confirm unsaved-change protection.
 - Open Review and inspect recent, treatment-cycle, and long-term views using synthetic data.
@@ -178,6 +179,7 @@ Update these together for each release:
 - Create same-day Therapy and Physical Therapy events with the same fictional description and confirm both event types remain distinct in the PDF and workbook.
 - With fictional data, confirm recent above-zero PHQ-9 item 9 responses are described within the latest 14-day window with coverage; older-only responses are labeled historical and do not imply current risk; and no item 9 prompt appears when every selected response is zero.
 - Generate the normalized Analysis Workbook and confirm its eight logical worksheets contain no merged cells, one logical record per row, and valid identifier relationships. Confirm **14-Day Item Profile** contains 16 derived item records.
+- Confirm historical v1 workbook item responses retain `definition_version=1` but expose only numeric daily-severity `response_label` values, never the known-regressed frequency wording; confirm v1 and v2 analytics remain separate.
 - Confirm PDF and workbook files both land under the common `reports` folder, repeated generation does not overwrite an existing file, optional open prompts work, open failures preserve the saved path, and **Open Reports Folder** opens the same location.
 - Inspect the portable folder and ZIP before launch; confirm they contain no database, report, export, log, screenshot, PHI, or PII.
 - Launch the portable package, confirm it creates `phq9_tracker.sqlite` beside the executable, save synthetic data, restart and confirm persistence, then delete/reset the synthetic database and verify a fresh launch contains zero records.

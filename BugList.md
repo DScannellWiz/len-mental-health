@@ -1,9 +1,17 @@
-Current as of: 2026-09-18
-Last substantive update: 2026-09-18
+Current as of: 2026-09-19
+Last substantive update: 2026-09-19
+
+BUG: Published v0.5.0-alpha.1 splits compatible PHQ-9/GAD-7 v1 and v2 analytics
+
+Status: Corrected in source; unreleased as of 2026-09-19
+
+The published binary separates Review/PDF score trends and 14-day profiles at the v1/v2 definition boundary. The v2 change corrected response wording and instructions, not daily score or 14-day frequency semantics. Current source joins only explicitly approved PHQ-9 and GAD-7 v1/v2 analytical series. Stored submissions and immutable definition snapshots remain unchanged; exact definition versions remain in detail exports. A future version has a distinct series unless explicitly approved as compatible. The public v0.5.0-alpha.1 asset is unchanged.
+
+---
 
 BUG: Iteration 014 displayed frequency wording for daily severity responses
 
-Status: Corrected for the v0.5.0-alpha.1 pre-release; exact-candidate validation pending
+Status: Corrected in the published v0.5.0-alpha.1 pre-release
 
 Iteration 014 introduced shared response labels reading `Not at all / Several days / More than half the days / Nearly every day` even though Len stores and totals each check-in as single-day symptom severity. PHQ-9 and GAD-7 were both affected. The separate derived 14-day symptom-frequency calculation was not affected.
 

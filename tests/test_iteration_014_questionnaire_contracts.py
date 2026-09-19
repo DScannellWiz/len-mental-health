@@ -328,24 +328,36 @@ class Iteration014QuestionnaireContractTests(unittest.TestCase):
         self.assertIn("does not define a total score", app.questionnaire_total_trend_omission_reason(definition))
         self.assertIn("does not define a 14-day item profile", app.questionnaire_profile_omission_reason(definition))
 
-    def test_total_trends_split_definition_versions_instead_of_blending_them(self):
+    def test_approved_v1_v2_score_series_are_chronological_for_both_builtins(self):
+        for questionnaire_id, item_count in (("phq9", 9), ("gad7", 7)):
+            entries = [
+                app.AssessmentEntryRow(2, questionnaire_id, "2026-01-02", [1] * item_count, item_count, "Mild", "", definition_version=2),
+                app.AssessmentEntryRow(1, questionnaire_id, "2026-01-01", [0] * item_count, 0, "Minimal", "", definition_version=1),
+            ]
+            with patch.object(app, "load_questionnaire_definition_snapshot", return_value=app.LEGACY_BUILTIN_DEFINITIONS[questionnaire_id]):
+                series = app.build_questionnaire_trend_series(questionnaire_id, entries)
+            self.assertEqual(len(series), 1)
+            self.assertEqual(series[0].definition_versions, (1, 2))
+            self.assertEqual([row.entry_date for row in series[0].entries], ["2026-01-01", "2026-01-02"])
+            self.assertEqual([row.definition_version for row in series[0].entries], [1, 2])
+            self.assertEqual(series[0].label, app.QUESTIONNAIRES[questionnaire_id].display_name)
+
+    def test_unapproved_future_version_remains_a_separate_score_series(self):
+        current = app.QUESTIONNAIRES["phq9"]
+        future_items = tuple(replace(item, options=tuple(replace(option, score=option.score * 2)
+                                                           for option in item.options)) for item in current.items)
+        future = replace(current, definition_version=3, items=future_items, score_max=54)
         entries = [
-            app.AssessmentEntryRow(1, "phq9", "2026-01-01", [0] * 9, 0, "Minimal", "", definition_version=1),
+            app.AssessmentEntryRow(1, "phq9", "2026-01-01", [1] * 9, 9, "Mild", "", definition_version=1),
             app.AssessmentEntryRow(2, "phq9", "2026-01-02", [1] * 9, 9, "Mild", "", definition_version=2),
+            app.AssessmentEntryRow(3, "phq9", "2026-01-03", [1] * 9, 18, "", "", definition_version=3),
         ]
-
-        with patch.object(
-            app,
-            "load_questionnaire_definition_snapshot",
-            return_value=app.LEGACY_BUILTIN_DEFINITIONS["phq9"],
-        ):
+        with patch.object(app, "load_questionnaire_definition_snapshot", side_effect=lambda _, version: app.LEGACY_BUILTIN_DEFINITIONS["phq9"] if version == 1 else future):
             series = app.build_questionnaire_trend_series("phq9", entries)
+        self.assertEqual([part.definition_versions for part in series], [(1, 2), (3,)])
 
-        self.assertEqual([item.definition.definition_version for item in series], [1, 2])
-        self.assertEqual([[row.entry_date for row in item.entries] for item in series], [["2026-01-01"], ["2026-01-02"]])
-
-    def test_profile_comparison_does_not_cross_a_definition_version_boundary(self):
-        version_two = replace(app.QUESTIONNAIRES["phq9"], definition_version=2)
+    def test_profile_comparison_crosses_approved_v1_v2_boundary(self):
+        version_two = app.QUESTIONNAIRES["phq9"]
         entries = [
             app.AssessmentEntryRow(1, "phq9", "2026-01-14", [1] + [0] * 8, 1, "Minimal", "", definition_version=1),
             app.AssessmentEntryRow(2, "phq9", "2026-01-28", [1] + [0] * 8, 1, "Minimal", "", definition_version=2),
@@ -354,8 +366,20 @@ class Iteration014QuestionnaireContractTests(unittest.TestCase):
         with patch.object(app, "load_questionnaire_definition_snapshot", return_value=version_two):
             highlights = app.symptom_highlights("phq9", entries, "2026-01-28", limit=1)
 
-        self.assertIn("PHQ-9 v2", highlights[0])
-        self.assertNotIn("compared with", highlights[0])
+        self.assertIn("PHQ-9", highlights[0])
+        self.assertNotIn("PHQ-9 v2", highlights[0])
+        self.assertIn("two periods", highlights[0])
+
+    def test_treatment_cycle_uses_both_approved_versions(self):
+        entries = [
+            app.AssessmentEntryRow(1, "phq9", "2026-01-14", [1] + [0] * 8, 1, "Minimal", "", definition_version=1),
+            app.AssessmentEntryRow(2, "phq9", "2026-01-15", [2] + [0] * 8, 2, "Minimal", "", definition_version=2),
+        ]
+        with patch.object(app, "load_questionnaire_definition_snapshot", return_value=app.LEGACY_BUILTIN_DEFINITIONS["phq9"]):
+            _, cycle_entries, other_series = app._latest_definition_group("phq9", entries, "2026-01-15")
+        cycles = app.treatment_cycles(cycle_entries, [(1, "2026-01-14", "Ketamine infusion", "fictional")], "2026-01-15")
+        self.assertFalse(other_series)
+        self.assertEqual([row.definition_version for row in cycles[0].entries], [1, 2])
 
 
 if __name__ == "__main__":

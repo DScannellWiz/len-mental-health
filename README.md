@@ -17,6 +17,8 @@ The current public prerelease, [`v0.5.0-alpha.1`](https://github.com/DScannellWi
 
 The official public binary is [`Len-Portable-0.5.0-alpha.1.zip`](https://github.com/DScannellWiz/len-mental-health/releases/download/v0.5.0-alpha.1/Len-Portable-0.5.0-alpha.1.zip), 43,700,470 bytes, with SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`. Only the latest published alpha is supported. `v0.4.1-alpha.1`, `v0.4.0-alpha.1`, `v0.3.0-alpha.1`, and earlier prereleases remain downloadable as frozen historical records; they are not rebuilt, overwritten, relabeled, or maintained as current versions. Do not download executables or ZIP files from reposts or unofficial mirrors.
 
+Known issue in the published `v0.5.0-alpha.1` binary: its Review and PDF score trends split historical definition v1 observations from new v2 observations even though those scores have the same daily-severity meaning. The current source corrects the analytical grouping; a corrected binary has not yet been released. Stored check-ins and their definition versions are preserved.
+
 ## Current Features
 
 - A definition-driven Today's Check-In with a compact questionnaire roster, one active form at a time, explicit daily-severity guidance, and `Not present / Mild / Moderate / High` choices for both PHQ-9 and GAD-7.

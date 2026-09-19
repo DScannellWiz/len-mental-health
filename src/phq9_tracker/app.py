@@ -172,7 +172,7 @@ UNIVERSAL_SAFETY_MESSAGE = (
 )
 DAILY_SCORE_LABEL = "Daily Severity Score"
 FREQUENCY_SCORE_LABEL = "14-Day Symptom Frequency Score"
-ANALYSIS_WORKBOOK_SCHEMA_VERSION = "1.2"
+ANALYSIS_WORKBOOK_SCHEMA_VERSION = "1.3"
 COMPACT_SPINBOX_PADDING = (2, 0)
 UNANSWERED_RESPONSE = "Select a response"
 SCORING_EXPLANATION = f"""{APPLICATION_NAME} calculates two related but different measurements.
@@ -1170,13 +1170,16 @@ class PeriodComparison:
 
 @dataclass(frozen=True)
 class QuestionnaireTrendSeries:
-    """One definition-version-specific total-score series for neutral charting."""
+    """One explicitly compatible total-score series for neutral charting."""
 
     definition: QuestionnaireDefinition
     entries: tuple[AssessmentEntryRow, ...]
+    definition_versions: tuple[int, ...]
 
     @property
     def label(self) -> str:
+        if len(self.definition_versions) > 1:
+            return self.definition.display_name
         return f"{self.definition.display_name} v{self.definition.definition_version}"
 
 
@@ -1438,18 +1441,70 @@ def _definition_groups_for_entries(
     return [(definitions[version], grouped[version]) for version in sorted(grouped)]
 
 
+ANALYTICAL_SERIES_IDS = MappingProxyType({
+    (questionnaire_id, version): f"{questionnaire_id}:daily_severity_v1"
+    for questionnaire_id in ("phq9", "gad7")
+    for version in (1, 2)
+})
+
+
+def analytical_series_id(questionnaire_id: str, definition_version: int) -> str:
+    return ANALYTICAL_SERIES_IDS.get(
+        (questionnaire_id, definition_version), f"{questionnaire_id}:v{definition_version}"
+    )
+
+
+def _entry_analytical_series_id(entry: AssessmentEntryRow) -> str:
+    version = entry.definition_version or QUESTIONNAIRES[entry.assessment_id].definition_version
+    return analytical_series_id(entry.assessment_id, version)
+
+
+def _analytical_signature(definition: QuestionnaireDefinition) -> tuple:
+    """Fields that must agree before score and item profiles can share a series."""
+    return (
+        definition.scoring_rule, definition.score_min, definition.score_max,
+        definition.profile_rule, definition.interpretation_policy, definition.behavior_ids,
+        tuple((item.question_id, item.behavior_ids,
+               tuple((option.value, option.score) for option in item.options))
+              for item in definition.items),
+    )
+
+
+def _analytical_groups_for_entries(
+    questionnaire_id: str,
+    entries: list[AssessmentEntryRow],
+) -> list[tuple[str, QuestionnaireDefinition, list[AssessmentEntryRow], tuple[int, ...]]]:
+    """Join only approved versions; unknown versions remain separate by default."""
+    grouped: dict[str, list[tuple[QuestionnaireDefinition, list[AssessmentEntryRow]]]] = {}
+    for definition, definition_entries in _definition_groups_for_entries(questionnaire_id, entries):
+        series_id = analytical_series_id(questionnaire_id, definition.definition_version)
+        grouped.setdefault(series_id, []).append((definition, definition_entries))
+    result = []
+    for series_id, members in grouped.items():
+        if len({_analytical_signature(definition) for definition, _ in members}) != 1:
+            raise ValueError(f"Incompatible definitions assigned to analytical series {series_id}.")
+        definition = max((definition for definition, _ in members), key=lambda item: item.definition_version)
+        versions = tuple(sorted(member.definition_version for member, _ in members))
+        combined = sorted(
+            (entry for _, member_entries in members for entry in member_entries),
+            key=lambda entry: (entry.entry_date, entry.id),
+        )
+        result.append((series_id, definition, combined, versions))
+    return sorted(result, key=lambda item: max((entry.entry_date for entry in item[2]), default=""))
+
+
 def build_questionnaire_trend_series(
     questionnaire_id: str,
     entries: list[AssessmentEntryRow] | None = None,
 ) -> list[QuestionnaireTrendSeries]:
-    """Build version-separated neutral total-score series when explicitly supported."""
+    """Build approved compatible neutral total-score series."""
     if questionnaire_id not in QUESTIONNAIRES:
         raise ValueError(f"Unknown questionnaire: {questionnaire_id}")
     resolved_entries = fetch_assessment_entries(questionnaire_id) if entries is None else entries
     series = []
-    for definition, definition_entries in _definition_groups_for_entries(questionnaire_id, resolved_entries):
+    for _, definition, definition_entries, versions in _analytical_groups_for_entries(questionnaire_id, resolved_entries):
         if questionnaire_total_trend_omission_reason(definition) is None:
-            series.append(QuestionnaireTrendSeries(definition, tuple(definition_entries)))
+            series.append(QuestionnaireTrendSeries(definition, tuple(definition_entries), versions))
     return series
 
 
@@ -1458,11 +1513,11 @@ def _latest_definition_group(
     entries: list[AssessmentEntryRow],
     end_date: str,
 ) -> tuple[QuestionnaireDefinition, list[AssessmentEntryRow], bool]:
-    """Select one version for comparison so unlike definitions are never blended."""
-    groups = _definition_groups_for_entries(questionnaire_id, entries)
+    """Select the latest compatible series without blending unlike scoring semantics."""
+    groups = _analytical_groups_for_entries(questionnaire_id, entries)
     eligible = [
         (definition, [entry for entry in group_entries if entry.entry_date <= end_date])
-        for definition, group_entries in groups
+        for _, definition, group_entries, _ in groups
     ]
     eligible = [(definition, group_entries) for definition, group_entries in eligible if group_entries]
     if not eligible:
@@ -1478,9 +1533,9 @@ def build_14_day_item_profile(end_date: str, questionnaire_ids=None) -> list[dic
     records: list[dict[str, object]] = []
     for assessment_id in normalize_questionnaire_selection(questionnaire_ids):
         entries = fetch_assessment_entries(assessment_id, window_start, end_date)
-        definition_groups = _definition_groups_for_entries(assessment_id, entries)
-        multiple_versions = len(definition_groups) > 1
-        for definition, definition_entries in definition_groups:
+        analytical_groups = _analytical_groups_for_entries(assessment_id, entries)
+        multiple_series = len(analytical_groups) > 1
+        for series_id, definition, definition_entries, versions in analytical_groups:
             if questionnaire_profile_omission_reason(definition) is not None:
                 continue
             score = calculate_questionnaire_profile_for_window(
@@ -1489,7 +1544,7 @@ def build_14_day_item_profile(end_date: str, questionnaire_ids=None) -> list[dic
                 window_start,
                 end_date,
             )
-            version_component = f":v{definition.definition_version}" if multiple_versions else ""
+            version_component = f":{series_id}" if multiple_series else ""
             for item_index, item_label in enumerate(definition.item_labels):
                 records.append(
                     {
@@ -1498,7 +1553,9 @@ def build_14_day_item_profile(end_date: str, questionnaire_ids=None) -> list[dic
                         "window_end": end_date,
                         "assessment_id": assessment_id,
                         "assessment_name": definition.display_name,
-                        "definition_version": definition.definition_version,
+                        "definition_version": versions[0] if len(versions) == 1 else None,
+                        "definition_versions": "|".join(f"v{version}" for version in versions),
+                        "analytical_series_id": series_id,
                         "item_number": item_index + 1,
                         "item_label": item_label,
                         "symptom_present_days": score.item_counts[item_index],
@@ -2798,7 +2855,7 @@ def export_analysis_workbook(path: str, questionnaire_ids=None) -> None:
         "Treatment Cycles": ["treatment_cycle_record_id", "anchor_treatment_event_record_id", "cycle_number", "cycle_start_date", "cycle_end_date", "is_current_cycle"],
         "Metadata": ["metadata_key", "metadata_value", "description"],
         "Daily Summary": ["daily_record_id", "entry_date", "assessment_record_ids", "phq9_daily_severity_score", "phq9_severity_category", "gad7_daily_severity_score", "gad7_severity_category", "note_record_id", "treatment_event_record_ids", "treatment_event_count", "ketamine_recorded", "therapy_recorded", "medication_change_recorded"],
-        "14-Day Item Profile": ["profile_record_id", "window_start", "window_end", "assessment_id", "assessment_name", "item_number", "item_label", "symptom_present_days", "recorded_day_coverage", "calendar_days", "frequency_score", "definition_version"],
+        "14-Day Item Profile": ["profile_record_id", "window_start", "window_end", "assessment_id", "assessment_name", "item_number", "item_label", "symptom_present_days", "recorded_day_coverage", "calendar_days", "frequency_score", "definition_version", "definition_versions", "analytical_series_id"],
     }
     workbook_data = _analysis_workbook_data(questionnaire_ids)
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
@@ -3255,8 +3312,8 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
         story.append(
             Paragraph(
                 "<b>Daily Severity Score:</b> when a questionnaire definition declares a supported total-score "
-                "calculation, its recorded item responses are combined for that check-in. Definition versions are "
-                "kept separate.",
+                "calculation, its recorded item responses are combined for that check-in. Only explicitly "
+                "compatible definition versions share a score trend.",
                 styles["BodyText"],
             )
         )
@@ -3366,21 +3423,22 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
         )
     for assessment_id in selected_ids:
         assessment_profile_rows = [row for row in item_profile if row["assessment_id"] == assessment_id]
-        for definition_version in sorted({row["definition_version"] for row in assessment_profile_rows}):
+        for series_id in sorted({row["analytical_series_id"] for row in assessment_profile_rows}):
             profile_rows = [
-                row for row in assessment_profile_rows if row["definition_version"] == definition_version
+                row for row in assessment_profile_rows if row["analytical_series_id"] == series_id
             ]
             if not profile_rows:
                 continue
-            definition = next(
-                definition
-                for definition in report_definitions
-                if definition.questionnaire_id == assessment_id
-                and definition.definition_version == definition_version
-            )
+            definition = next(definition for definition in report_definitions
+                              if definition.questionnaire_id == assessment_id
+                              and definition.definition_version == max(
+                                  int(version[1:]) for version in profile_rows[0]["definition_versions"].split("|")
+                              ))
+            profile_label = (definition.display_name if "|" in profile_rows[0]["definition_versions"]
+                             else f"{definition.display_name} v{definition.definition_version}")
             add_pdf_table(
                 story,
-                f"{definition.display_name} v{definition.definition_version}",
+                profile_label,
                 [["Item", "Present days", "Coverage", "Score (0-3)"]]
                 + [
                     [
@@ -4614,7 +4672,7 @@ class PHQ9App(Tk):
                     recent_entries = list(current_series.entries[-28:])
                     long_entries = list(current_series.entries[-120:])
                     version_note = (
-                        f" v{definition.definition_version}; earlier versions are not combined"
+                        f" v{definition.definition_version}; other scoring series are not combined"
                         if len(trend_series) > 1
                         else ""
                     )
@@ -4636,7 +4694,8 @@ class PHQ9App(Tk):
                     self.recent_trend_charts[questionnaire_id].draw_series([], [], 1, reason)
                     self.long_term_trend_charts[questionnaire_id].draw_series([], [], 1, reason)
 
-            cycles = treatment_cycles(phq_entries, fetch_events(end=latest_date), latest_date)
+            _, cycle_entries, _ = _latest_definition_group("phq9", phq_entries, latest_date)
+            cycles = treatment_cycles(cycle_entries, fetch_events(end=latest_date), latest_date)
             for index, (label, chart) in enumerate(zip(self.cycle_labels, self.cycle_charts)):
                 if index < len(cycles):
                     cycle = cycles[index]
@@ -4683,12 +4742,12 @@ class PHQ9App(Tk):
             gad = gad_by_date.get(entry_date)
             trend_parts = []
             tag = "neutral"
-            if phq and prior_phq:
+            if phq and prior_phq and _entry_analytical_series_id(phq) == _entry_analytical_series_id(prior_phq):
                 delta = phq.total - prior_phq.total
                 if delta:
                     trend_parts.append(f"PHQ {delta:+d}")
                     tag = "worse" if delta > 0 else "better"
-            if gad and prior_gad:
+            if gad and prior_gad and _entry_analytical_series_id(gad) == _entry_analytical_series_id(prior_gad):
                 delta = gad.total - prior_gad.total
                 if delta:
                     trend_parts.append(f"GAD {delta:+d}")
@@ -4715,8 +4774,8 @@ class PHQ9App(Tk):
             self.item_table.delete(row)
         for questionnaire_id in QUESTIONNAIRE_ORDER:
             entries = fetch_assessment_entries(questionnaire_id)
-            definition_groups = _definition_groups_for_entries(questionnaire_id, entries)
-            for definition, definition_entries in definition_groups:
+            analytical_groups = _analytical_groups_for_entries(questionnaire_id, entries)
+            for _, definition, definition_entries, versions in analytical_groups:
                 if not definition_entries or questionnaire_profile_omission_reason(definition) is not None:
                     continue
                 end_date = max(row.entry_date for row in definition_entries)
@@ -4726,7 +4785,7 @@ class PHQ9App(Tk):
                 )
                 version_label = (
                     f" v{definition.definition_version}"
-                    if len(definition_groups) > 1
+                    if len(analytical_groups) > 1
                     else ""
                 )
                 for idx, question in enumerate(definition.items, start=1):

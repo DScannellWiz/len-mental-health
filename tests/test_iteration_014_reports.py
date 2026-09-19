@@ -82,7 +82,15 @@ class Iteration014ReportTests(unittest.TestCase):
         )
         self.assertEqual(metadata["safety_message"], app.UNIVERSAL_SAFETY_MESSAGE)
         self.assertEqual(metadata["non_diagnostic_notice"], app.NON_DIAGNOSTIC_OUTPUT_NOTICE)
-        self.assertEqual(app.ANALYSIS_WORKBOOK_SCHEMA_VERSION, "1.2")
+        v2_labels = {row["response_label"] for row in workbook["Item Responses"]
+                     if row["assessment_id"] == "gad7" and row["definition_version"] == 2}
+        self.assertIn("Mild", v2_labels)
+        gad_profile = [row for row in workbook["14-Day Item Profile"] if row["assessment_id"] == "gad7"]
+        self.assertEqual(len(gad_profile), 7)
+        self.assertEqual({row["recorded_day_coverage"] for row in gad_profile}, {2})
+        self.assertEqual({row["definition_versions"] for row in gad_profile}, {"v1|v2"})
+        self.assertEqual({row["definition_version"] for row in gad_profile}, {None})
+        self.assertEqual(app.ANALYSIS_WORKBOOK_SCHEMA_VERSION, "1.3")
 
     def test_pdf_identifies_versions_and_keeps_required_safety_copy(self):
         if app.colors is None or app.PILImage is None:
@@ -95,6 +103,10 @@ class Iteration014ReportTests(unittest.TestCase):
         self.move_gad7_record_to_version_one()
         target = Path(self.tmp.name) / "fictional-gate-f.pdf"
 
+        app.upsert_entry("2026-09-10", [1, 0, 0, 0, 0, 0, 0, 0, 1])
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("UPDATE questionnaire_submissions SET definition_version = 1 WHERE questionnaire_id = 'phq9' AND entry_date = '2026-09-01'")
+
         app.generate_report("2026-09-01", "2026-09-10", str(target))
 
         text = " ".join(
@@ -103,6 +115,13 @@ class Iteration014ReportTests(unittest.TestCase):
         self.assertIn("Questionnaire Definitions", text)
         self.assertIn("GAD-7 v1", text)
         self.assertIn("GAD-7 v2", text)
+        self.assertIn("GAD-7 scores across the selected period", text)
+        self.assertIn("PHQ-9 scores across the selected period", text)
+        self.assertNotIn("GAD-7 v1 scores across the selected period", text)
+        self.assertNotIn("GAD-7 v2 scores across the selected period", text)
+        self.assertNotIn("PHQ-9 v1 scores across the selected period", text)
+        self.assertNotIn("PHQ-9 v2 scores across the selected period", text)
+        self.assertIn("PHQ-9 item 9 context", text)
         self.assertIn(app.NON_DIAGNOSTIC_OUTPUT_NOTICE, text)
         self.assertIn("If you feel unsafe or may act on thoughts of self-harm", text)
         self.assertIn("Len does not monitor responses or provide emergency help", text)

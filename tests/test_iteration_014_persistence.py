@@ -406,7 +406,7 @@ class Iteration014PersistenceTests(unittest.TestCase):
         self.assertEqual(rows[0].items, [0, 1, 2, 3, 0, 1, 2])
         self.assertEqual(rows[0].notes, "original")
         self.assertEqual(rows[0].definition_version, 2)
-        self.assertEqual({record["definition_version"] for record in profile}, {2})
+        self.assertTrue(all("definition_version" not in record for record in profile))
 
     def test_c3_falls_back_for_an_unmigrated_legacy_database(self):
         app.init_db(self.db_path)

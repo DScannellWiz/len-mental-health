@@ -172,13 +172,16 @@ UNIVERSAL_SAFETY_MESSAGE = (
 )
 DAILY_SCORE_LABEL = "Daily Severity Score"
 FREQUENCY_SCORE_LABEL = "14-Day Symptom Frequency Score"
-ANALYSIS_WORKBOOK_SCHEMA_VERSION = "1.3"
+ANALYSIS_WORKBOOK_SCHEMA_VERSION = "1.4"
 COMPACT_SPINBOX_PADDING = (2, 0)
 UNANSWERED_RESPONSE = "Select a response"
 SCORING_EXPLANATION = f"""{APPLICATION_NAME} calculates two related but different measurements.
 
 Daily Severity Score
 Each PHQ-9 or GAD-7 item is rated from 0 (symptom not present) to 3 (high symptom severity). The item responses are summed for that date. This answers: How severe were the reported symptoms on this particular day?
+
+Average Item Severity
+For each item, average its daily 0-3 severity ratings across recorded check-ins in the selected period. Missing days are excluded. This average is descriptive and has no separate clinical interpretation.
 
 14-Day Symptom Frequency Score
 For the 14 calendar days ending on the selected date, each response greater than 0 counts as one symptom-present day. For each item, 0 days = 0 points, 1-6 days = 1 point, 7-11 days = 2 points, and 12-14 days = 3 points. The converted item scores are summed. This answers: How consistently were these symptoms present during the last 14 days?
@@ -187,7 +190,7 @@ Important distinction
 A daily response of 1 and a daily response of 3 each count as one symptom-present day in the 14-day calculation, although they contribute differently to the Daily Severity Score. For example, an item present on 6 days receives 1 frequency point; an item present on 12 days receives 3 frequency points.
 
 Data coverage
-The application displays how many daily entries were available. Calendar days without an entry are treated as days with no recorded symptom-present response; that is not proof that the symptom was absent.
+The application displays how many daily entries were available. Calendar days without an entry are missing information, not symptom absence.
 
 Mindful check-ins
 Daily check-ins should encourage mindful reflection rather than rapid completion. The application intentionally requires users to consider each symptom individually to reduce habitual responses and improve the quality of the recorded data."""
@@ -1100,9 +1103,9 @@ def user_facing_response_label(
     definition: QuestionnaireDefinition,
     option: ResponseOption,
 ) -> str:
-    """Avoid presenting the known-regressed v1 labels as daily-severity meaning."""
-    if definition.questionnaire_id in LEGACY_BUILTIN_DEFINITIONS and definition.definition_version == 1:
-        return str(option.value)
+    """Give built-in daily severity values one owner-approved public meaning."""
+    if definition.questionnaire_id in LEGACY_BUILTIN_DEFINITIONS and definition.definition_version in (1, 2):
+        return DAILY_SEVERITY_RESPONSE_OPTIONS[int(option.value)].label
     return option.label
 
 
@@ -1178,9 +1181,9 @@ class QuestionnaireTrendSeries:
 
     @property
     def label(self) -> str:
-        if len(self.definition_versions) > 1:
+        if self.definition.questionnaire_id in LEGACY_BUILTIN_DEFINITIONS and self.definition.definition_version in (1, 2):
             return self.definition.display_name
-        return f"{self.definition.display_name} v{self.definition.definition_version}"
+        return f"{self.definition.display_name} (separate scoring series)"
 
 
 @dataclass(frozen=True)
@@ -1442,7 +1445,7 @@ def _definition_groups_for_entries(
 
 
 ANALYTICAL_SERIES_IDS = MappingProxyType({
-    (questionnaire_id, version): f"{questionnaire_id}:daily_severity_v1"
+    (questionnaire_id, version): f"{questionnaire_id}:daily_severity"
     for questionnaire_id in ("phq9", "gad7")
     for version in (1, 2)
 })
@@ -1508,6 +1511,30 @@ def build_questionnaire_trend_series(
     return series
 
 
+def build_item_severity_averages(
+    questionnaire_id: str,
+    entries: list[AssessmentEntryRow],
+) -> list[dict[str, object]]:
+    """Average recorded daily item severities; unrecorded days have no value."""
+    rows = []
+    for series_id, definition, series_entries, _ in _analytical_groups_for_entries(questionnaire_id, entries):
+        if (not series_entries or definition.questionnaire_id not in LEGACY_BUILTIN_DEFINITIONS
+                or definition.definition_version not in (1, 2)):
+            continue
+        for index, question in enumerate(definition.items):
+            values = [_profile_response_score(question, entry.items[index]) for entry in series_entries]
+            rows.append({
+                "assessment_id": questionnaire_id,
+                "assessment_name": definition.display_name,
+                "analytical_series_id": series_id,
+                "item_number": index + 1,
+                "item_label": question.report_label or question.prompt,
+                "recorded_checkins": len(values),
+                "average_severity": round(sum(values) / len(values), 1),
+            })
+    return rows
+
+
 def _latest_definition_group(
     questionnaire_id: str,
     entries: list[AssessmentEntryRow],
@@ -1553,8 +1580,6 @@ def build_14_day_item_profile(end_date: str, questionnaire_ids=None) -> list[dic
                         "window_end": end_date,
                         "assessment_id": assessment_id,
                         "assessment_name": definition.display_name,
-                        "definition_version": versions[0] if len(versions) == 1 else None,
-                        "definition_versions": "|".join(f"v{version}" for version in versions),
                         "analytical_series_id": series_id,
                         "item_number": item_index + 1,
                         "item_label": item_label,
@@ -1565,6 +1590,26 @@ def build_14_day_item_profile(end_date: str, questionnaire_ids=None) -> list[dic
                     }
                 )
     return records
+
+
+def build_14_day_frequency_totals(end_date: str, questionnaire_ids=None) -> list[dict[str, object]]:
+    """One derived questionnaire total per compatible series and 14-day window."""
+    grouped: dict[tuple[str, str], list[dict[str, object]]] = {}
+    for row in build_14_day_item_profile(end_date, questionnaire_ids):
+        grouped.setdefault((row["assessment_id"], row["analytical_series_id"]), []).append(row)
+    return [
+        {
+            "assessment_id": rows[0]["assessment_id"],
+            "assessment_name": rows[0]["assessment_name"],
+            "analytical_series_id": rows[0]["analytical_series_id"],
+            "window_start": rows[0]["window_start"],
+            "window_end": rows[0]["window_end"],
+            "recorded_day_coverage": rows[0]["recorded_day_coverage"],
+            "calendar_days": rows[0]["calendar_days"],
+            "frequency_total_score": sum(row["frequency_score"] for row in rows),
+        }
+        for rows in grouped.values()
+    ]
 
 
 def compare_recent_14_day_periods(
@@ -1765,7 +1810,7 @@ def overall_pattern_summary(
         comparison = compare_recent_14_day_periods(entries, assessment_id, end_date, definition)
         label = definition.display_name
         if has_multiple_versions:
-            label = f"{label} v{definition.definition_version}"
+            label = f"{label} (separate scoring series)"
         coverage.append(f"{label} {comparison.current.entries_included}/14")
         if not comparison.has_comparable_data:
             phrases.append(f"{label} does not yet have recorded check-ins in both comparison periods")
@@ -1789,7 +1834,7 @@ def symptom_highlights(
     comparison = compare_recent_14_day_periods(entries, assessment_id, end_date, definition)
     display_name = definition.display_name
     if has_multiple_versions:
-        display_name = f"{display_name} v{definition.definition_version}"
+        display_name = f"{display_name} (separate scoring series)"
     current_entries = entries_for_window(entries, comparison.current_start, comparison.current_end)
     previous_entries = entries_for_window(entries, comparison.previous_start, comparison.previous_end)
     if not current_entries:
@@ -2667,7 +2712,6 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
     assessment_ids_by_date: dict[str, list[str]] = {}
     assessment_summary_by_date: dict[str, dict[str, object]] = {}
 
-    definition_versions: dict[str, set[int]] = {questionnaire_id: set() for questionnaire_id in selected_ids}
     for row in assessments:
         definition_version = row.definition_version or QUESTIONNAIRES[row.assessment_id].definition_version
         definition = (
@@ -2675,7 +2719,6 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
             if definition_version == QUESTIONNAIRES[row.assessment_id].definition_version
             else load_questionnaire_definition_snapshot(row.assessment_id, definition_version)
         )
-        definition_versions[row.assessment_id].add(definition_version)
         compatibility = compatibility_by_key[(row.assessment_id, row.entry_date)]
         assessment_record_id = f"assessment:{row.id}"
         daily_record_id = f"day:{row.entry_date}"
@@ -2687,7 +2730,6 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
                 "entry_date": row.entry_date,
                 "assessment_id": row.assessment_id,
                 "assessment_name": definition.display_name,
-                "definition_version": definition_version,
                 "interpretation_policy": definition.interpretation_policy,
                 "daily_severity_score": row.total,
                 "severity_category": row.severity,
@@ -2709,7 +2751,6 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
                     "daily_record_id": daily_record_id,
                     "entry_date": row.entry_date,
                     "assessment_id": row.assessment_id,
-                    "definition_version": definition_version,
                     "question_id": question.question_id,
                     "item_number": item_number,
                     "item_label": question.report_label or question.prompt,
@@ -2805,15 +2846,6 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
         {"metadata_key": "generated_at", "metadata_value": datetime.now().astimezone().isoformat(timespec="seconds"), "description": "Local generation timestamp in ISO 8601 format."},
         {"metadata_key": "application", "metadata_value": APPLICATION_NAME, "description": "Application that generated the workbook."},
         {"metadata_key": "questionnaires_included", "metadata_value": "|".join(selected_ids), "description": "Questionnaires selected for this workbook."},
-        {
-            "metadata_key": "questionnaire_definition_versions",
-            "metadata_value": "|".join(
-                f"{questionnaire_id}:v{version}"
-                for questionnaire_id in selected_ids
-                for version in sorted(definition_versions[questionnaire_id])
-            ),
-            "description": "Exact stored questionnaire definition versions represented in this workbook.",
-        },
         {"metadata_key": "safety_message", "metadata_value": UNIVERSAL_SAFETY_MESSAGE, "description": "Universal owner-approved safety message."},
         {"metadata_key": "non_diagnostic_notice", "metadata_value": NON_DIAGNOSTIC_OUTPUT_NOTICE, "description": "Interpretation boundary for all workbook content."},
         {"metadata_key": "date_format", "metadata_value": "YYYY-MM-DD", "description": "Calendar-date format used in all date fields."},
@@ -2822,6 +2854,7 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
         {"metadata_key": "event_relationship", "metadata_value": "treatment_event_record_id", "description": "Treatment Events retain the stable SQLite event ID as event:<id>."},
         {"metadata_key": "cycle_relationship", "metadata_value": "anchor_treatment_event_record_id", "description": "Treatment Cycles reference the first recorded ketamine event on each anchor date."},
         {"metadata_key": "daily_severity_score", "metadata_value": "sum of item responses on one check-in", "description": "Measures recorded symptom severity for a single assessment date."},
+        {"metadata_key": "average_item_severity", "metadata_value": "mean of recorded daily item ratings", "description": "Selected-period 0-3 severity average; missing days are excluded and the average has no clinical interpretation."},
         {"metadata_key": "14_day_frequency_score", "metadata_value": "derived by calendar window", "description": "The 14-Day Item Profile contains one current-window derived record per assessment item."},
         {"metadata_key": "missing_checkins", "metadata_value": "missing information", "description": "A day without a check-in is not evidence that symptoms were absent."},
         {"metadata_key": "daily_summary_authority", "metadata_value": "derived", "description": "Daily Summary is a convenience view; normalized worksheets remain authoritative."},
@@ -2837,6 +2870,15 @@ def _analysis_workbook_data(questionnaire_ids=None) -> dict[str, list[dict[str, 
         "Treatment Cycles": treatment_cycle_rows,
         "Metadata": metadata,
         "Daily Summary": daily_summary,
+        "Item Severity Averages": [
+            row
+            for questionnaire_id in selected_ids
+            for row in build_item_severity_averages(
+                questionnaire_id,
+                [entry for entry in assessments if entry.assessment_id == questionnaire_id],
+            )
+        ],
+        "14-Day Frequency Totals": build_14_day_frequency_totals(profile_end, selected_ids),
         "14-Day Item Profile": build_14_day_item_profile(profile_end, selected_ids),
     }
 
@@ -2848,14 +2890,16 @@ def export_analysis_workbook(path: str, questionnaire_ids=None) -> None:
     if pd is None:
         raise RuntimeError("Analysis-ready Excel export requires pandas/openpyxl.")
     sheet_columns = {
-        "Daily Assessments": ["assessment_record_id", "assessment_entry_id", "daily_record_id", "entry_date", "assessment_id", "assessment_name", "daily_severity_score", "severity_category", "source", "created_at", "updated_at", "definition_version", "interpretation_policy"],
-        "Item Responses": ["item_response_record_id", "assessment_record_id", "assessment_entry_id", "daily_record_id", "entry_date", "assessment_id", "item_number", "item_label", "response_value", "symptom_present", "definition_version", "question_id", "response_label", "response_score"],
+        "Daily Assessments": ["assessment_record_id", "assessment_entry_id", "daily_record_id", "entry_date", "assessment_id", "assessment_name", "daily_severity_score", "severity_category", "source", "created_at", "updated_at", "interpretation_policy"],
+        "Item Responses": ["item_response_record_id", "assessment_record_id", "assessment_entry_id", "daily_record_id", "entry_date", "assessment_id", "item_number", "item_label", "response_value", "symptom_present", "question_id", "response_label", "response_score"],
         "Notes": ["note_record_id", "daily_record_id", "entry_date", "note_tag", "note_text", "created_at", "updated_at"],
         "Treatment Events": ["treatment_event_record_id", "treatment_event_id", "daily_record_id", "event_date", "event_type", "normalized_event_type", "description", "created_at"],
         "Treatment Cycles": ["treatment_cycle_record_id", "anchor_treatment_event_record_id", "cycle_number", "cycle_start_date", "cycle_end_date", "is_current_cycle"],
         "Metadata": ["metadata_key", "metadata_value", "description"],
         "Daily Summary": ["daily_record_id", "entry_date", "assessment_record_ids", "phq9_daily_severity_score", "phq9_severity_category", "gad7_daily_severity_score", "gad7_severity_category", "note_record_id", "treatment_event_record_ids", "treatment_event_count", "ketamine_recorded", "therapy_recorded", "medication_change_recorded"],
-        "14-Day Item Profile": ["profile_record_id", "window_start", "window_end", "assessment_id", "assessment_name", "item_number", "item_label", "symptom_present_days", "recorded_day_coverage", "calendar_days", "frequency_score", "definition_version", "definition_versions", "analytical_series_id"],
+        "Item Severity Averages": ["assessment_id", "assessment_name", "analytical_series_id", "item_number", "item_label", "recorded_checkins", "average_severity"],
+        "14-Day Frequency Totals": ["assessment_id", "assessment_name", "analytical_series_id", "window_start", "window_end", "recorded_day_coverage", "calendar_days", "frequency_total_score"],
+        "14-Day Item Profile": ["profile_record_id", "window_start", "window_end", "assessment_id", "assessment_name", "item_number", "item_label", "symptom_present_days", "recorded_day_coverage", "calendar_days", "frequency_score", "analytical_series_id"],
     }
     workbook_data = _analysis_workbook_data(questionnaire_ids)
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
@@ -3241,13 +3285,12 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
                 )
             )
     item_profile = build_14_day_item_profile(end, selected_ids)
-    report_definitions = [
-        definition
-        for questionnaire_id in selected_ids
-        for definition, definition_entries in _definition_groups_for_entries(
+    report_definitions = [QUESTIONNAIRES[questionnaire_id] for questionnaire_id in selected_ids]
+    severity_averages = [
+        row for questionnaire_id in selected_ids
+        for row in build_item_severity_averages(
             questionnaire_id, entries_by_questionnaire[questionnaire_id]
         )
-        if definition_entries
     ]
 
     styles = getSampleStyleSheet()
@@ -3260,7 +3303,7 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
             questionnaire_id, entries_by_questionnaire[questionnaire_id]
         ):
             chart_path = chart_dir / (
-                f"{questionnaire_id}_v{series.definition.definition_version}_recent.png"
+                f"{questionnaire_id}_recent.png"
             )
             recent_entries = list(series.entries[-90:])
             draw_line_chart(
@@ -3291,7 +3334,7 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
         Paragraph("How to Read This Report", styles["Heading1"]),
     ]
 
-    definition_rows = [["Questionnaire", "Definition", "Output policy"]]
+    definition_rows = [["Questionnaire", "Output policy"]]
     for definition in report_definitions:
         output_policy = (
             "Validated built-in interpretation"
@@ -3299,21 +3342,20 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
             else "Descriptive/raw output only; no automatic clinical interpretation"
         )
         definition_rows.append(
-            [definition.display_name, f"v{definition.definition_version}", output_policy]
+            [definition.display_name, output_policy]
         )
     add_pdf_table(
         story,
         "Questionnaire Definitions",
         definition_rows,
-        col_widths=[1.35 * inch, 0.8 * inch, 4.55 * inch],
-        wrap_columns={0, 1, 2},
+        col_widths=[1.7 * inch, 5.0 * inch],
+        wrap_columns={0, 1},
     )
     if report_charts:
         story.append(
             Paragraph(
-                "<b>Daily Severity Score:</b> when a questionnaire definition declares a supported total-score "
-                "calculation, its recorded item responses are combined for that check-in. Only explicitly "
-                "compatible definition versions share a score trend.",
+                "<b>Daily Severity Score:</b> each item is rated 0 (not present) to 3 (high) for that day. "
+                "The questionnaire total sums those daily item ratings.",
                 styles["BodyText"],
             )
         )
@@ -3321,8 +3363,13 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
         story.extend(
             [
                 Paragraph(
+                    "<b>Average Item Severity:</b> each item average uses recorded daily 0-3 severity ratings "
+                    "in the selected period. Missing days are excluded. This average has no separate clinical interpretation.",
+                    styles["BodyText"],
+                ),
+                Paragraph(
                     "<b>14-Day Symptom Frequency Score:</b> for definitions that declare the supported profile, each "
-                    "item counts calendar days with a scored response above zero. Counts convert to 0 points for 0 "
+                    "item counts recorded days with a severity response above zero. Counts convert to 0 points for 0 "
                     "days, 1 point for 1-6 days, 2 points for 7-11 days, or 3 points for 12-14 days.",
                     styles["BodyText"],
                 ),
@@ -3334,32 +3381,23 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
             ]
         )
     story.extend([Spacer(1, 0.12 * inch), Paragraph("Recorded Period Overview", styles["Heading1"])])
-    glance_rows = [["Questionnaire", "Definition", "Check-ins", "Most recent result", "Most recent date"]]
+    glance_rows = [["Questionnaire", "Check-ins", "Most recent result", "Most recent date"]]
     for questionnaire_id in selected_ids:
-        for definition, definition_entries in _definition_groups_for_entries(
-            questionnaire_id, entries_by_questionnaire[questionnaire_id]
-        ):
-            if not definition_entries:
-                continue
-            recent = definition_entries[-1]
-            recent_result = str(recent.total)
-            if definition.interpretation_policy == "validated_builtin" and recent.severity:
-                recent_result = f"{recent.total} ({recent.severity})"
-            glance_rows.append(
-                [
-                    definition.display_name,
-                    f"v{definition.definition_version}",
-                    str(len(definition_entries)),
-                    recent_result,
-                    recent.entry_date,
-                ]
-            )
+        definition_entries = entries_by_questionnaire[questionnaire_id]
+        if not definition_entries:
+            continue
+        definition = QUESTIONNAIRES[questionnaire_id]
+        recent = definition_entries[-1]
+        recent_result = str(recent.total)
+        if definition.interpretation_policy == "validated_builtin" and recent.severity:
+            recent_result = f"{recent.total} ({recent.severity})"
+        glance_rows.append([definition.display_name, str(len(definition_entries)), recent_result, recent.entry_date])
     add_pdf_table(
         story,
         "Recorded Check-Ins",
         glance_rows,
-        col_widths=[1.25 * inch, 0.7 * inch, 0.7 * inch, 2.45 * inch, 1.15 * inch],
-        wrap_columns={0, 1, 2, 3, 4},
+        col_widths=[1.45 * inch, 0.9 * inch, 2.9 * inch, 1.45 * inch],
+        wrap_columns={0, 1, 2, 3},
     )
     if interpreted_profile_ids:
         summary_story = [Paragraph("Overall pattern", styles["Heading2"])]
@@ -3399,7 +3437,7 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
     for definition in report_definitions:
         omission = questionnaire_total_trend_omission_reason(definition)
         if omission:
-            story.append(Paragraph(f"{definition.display_name} v{definition.definition_version}: {omission}", styles["BodyText"]))
+            story.append(Paragraph(f"{definition.display_name}: {omission}", styles["BodyText"]))
     q9_context = item9_context(item9_entries, end)
     q9_summary = item9_context_summary(q9_context)
     if q9_summary:
@@ -3410,6 +3448,25 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
                 styles["BodyText"],
             )
         )
+
+    if severity_averages:
+        story.append(PageBreak())
+        story.append(Paragraph("Selected Period Average Item Severity", styles["Heading1"]))
+        story.append(Paragraph(
+            "Average 0-3 severity across recorded check-ins in the selected period; unrecorded days are excluded.",
+            styles["BodyText"],
+        ))
+        for questionnaire_id in selected_ids:
+            rows = [row for row in severity_averages if row["assessment_id"] == questionnaire_id]
+            if rows:
+                add_pdf_table(
+                    story, QUESTIONNAIRES[questionnaire_id].display_name,
+                    [["Item", "Check-ins", "Average severity (0-3)"]]
+                    + [[f"{row['item_number']}. {row['item_label']}", str(row["recorded_checkins"]),
+                        f"{row['average_severity']:.1f}"] for row in rows],
+                    col_widths=[4.2 * inch, 1.0 * inch, 1.5 * inch],
+                    wrap_columns={0, 1, 2},
+                )
 
     story.append(PageBreak())
     story.append(Paragraph("Current 14-Day Item Profile", styles["Heading1"]))
@@ -3429,13 +3486,8 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
             ]
             if not profile_rows:
                 continue
-            definition = next(definition for definition in report_definitions
-                              if definition.questionnaire_id == assessment_id
-                              and definition.definition_version == max(
-                                  int(version[1:]) for version in profile_rows[0]["definition_versions"].split("|")
-                              ))
-            profile_label = (definition.display_name if "|" in profile_rows[0]["definition_versions"]
-                             else f"{definition.display_name} v{definition.definition_version}")
+            definition = QUESTIONNAIRES[assessment_id]
+            profile_label = definition.display_name
             add_pdf_table(
                 story,
                 profile_label,
@@ -3448,7 +3500,8 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
                         str(row["frequency_score"]),
                     ]
                     for row in profile_rows
-                ],
+                ] + [["Derived 14-day total", "", f"{profile_rows[0]['recorded_day_coverage']} of 14",
+                      str(sum(row["frequency_score"] for row in profile_rows))]],
                 col_widths=[4.05 * inch, 0.9 * inch, 0.85 * inch, 0.9 * inch],
                 wrap_columns={0, 1, 2, 3},
             )
@@ -3459,7 +3512,7 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
             if omission:
                 story.append(
                     Paragraph(
-                        f"{definition.display_name} v{definition.definition_version}: {omission}",
+                        f"{definition.display_name}: {omission}",
                         styles["BodyText"],
                     )
                 )
@@ -3473,11 +3526,7 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
         )
     )
     if cycles:
-        cycle_definition_label = (
-            f"PHQ-9 v{phq_cycle_definition.definition_version}"
-            if phq_has_multiple_versions
-            else "PHQ-9"
-        )
+        cycle_definition_label = "PHQ-9"
         cycle_rows = [["Cycle", "Dates", f"Recorded {cycle_definition_label} pattern"]]
         for cycle in cycles:
             cycle_rows.append([cycle.label, f"{cycle.start_date} to {cycle.end_date}", treatment_cycle_observation(cycle)])
@@ -3904,11 +3953,30 @@ class PHQ9App(Tk):
         self.review_notebook = ttk.Notebook(self.dashboard)
         self.review_notebook.pack(fill=BOTH, expand=True)
         overview = Frame(self.review_notebook, bg="#F8FAFC")
+        item_measures = Frame(self.review_notebook, bg="#F8FAFC")
         treatment = Frame(self.review_notebook, bg="#F8FAFC")
         long_term = Frame(self.review_notebook, bg="#F8FAFC")
         self.review_notebook.add(overview, text="Recent Trends")
+        self.review_notebook.add(item_measures, text="Item Measures")
         self.review_notebook.add(treatment, text="Treatment Cycles")
         self.review_notebook.add(long_term, text="Long-Term Trends")
+
+        self.item_window_label = Label(item_measures, text="No recorded check-ins yet.", bg="#F8FAFC", fg="#334155")
+        self.item_window_label.pack(anchor="w", padx=8, pady=6)
+        self.item_frequency_totals_label = Label(item_measures, text="", bg="#F8FAFC", fg="#172033")
+        self.item_frequency_totals_label.pack(anchor="w", padx=8)
+        Label(item_measures, text="Average daily severity (0-3) across recorded check-ins; missing days excluded.", bg="#F8FAFC").pack(anchor="w", padx=8)
+        self.item_severity_table = ttk.Treeview(item_measures, columns=("Questionnaire", "Item", "Check-ins", "Average severity"), show="headings", height=9)
+        for column, width in (("Questionnaire", 110), ("Item", 570), ("Check-ins", 90), ("Average severity", 130)):
+            self.item_severity_table.heading(column, text=column)
+            self.item_severity_table.column(column, width=width)
+        self.item_severity_table.pack(fill=BOTH, expand=True, padx=8, pady=(4, 8))
+        Label(item_measures, text="14-day frequency: recorded present days (severity >0) mapped to a 0-3 item score; coverage shows missing days.", bg="#F8FAFC").pack(anchor="w", padx=8)
+        self.item_frequency_table = ttk.Treeview(item_measures, columns=("Questionnaire", "Item", "Present days", "Coverage", "Frequency score"), show="headings", height=9)
+        for column, width in (("Questionnaire", 110), ("Item", 500), ("Present days", 100), ("Coverage", 90), ("Frequency score", 120)):
+            self.item_frequency_table.heading(column, text=column)
+            self.item_frequency_table.column(column, width=width)
+        self.item_frequency_table.pack(fill=BOTH, expand=True, padx=8, pady=(4, 8))
 
         self.recent_trend_charts = {}
         self.long_term_trend_charts = {}
@@ -4616,6 +4684,7 @@ class PHQ9App(Tk):
 
     def refresh_all(self):
         self.refresh_events()
+        self.refresh_item_table()
         entries_by_questionnaire = {
             questionnaire_id: fetch_assessment_entries(questionnaire_id)
             for questionnaire_id in QUESTIONNAIRE_ORDER
@@ -4671,11 +4740,7 @@ class PHQ9App(Tk):
                     definition = current_series.definition
                     recent_entries = list(current_series.entries[-28:])
                     long_entries = list(current_series.entries[-120:])
-                    version_note = (
-                        f" v{definition.definition_version}; other scoring series are not combined"
-                        if len(trend_series) > 1
-                        else ""
-                    )
+                    version_note = "; other scoring series are not combined" if len(trend_series) > 1 else ""
                     y_max = int(definition.score_max or 1)
                     self.recent_trend_charts[questionnaire_id].draw_series(
                         recent_entries,
@@ -4770,24 +4835,32 @@ class PHQ9App(Tk):
             prior_gad = gad or prior_gad
 
     def refresh_item_table(self):
-        for row in self.item_table.get_children():
-            self.item_table.delete(row)
+        for table in (self.item_severity_table, self.item_frequency_table):
+            for row in table.get_children():
+                table.delete(row)
+        all_entries = [row for questionnaire_id in QUESTIONNAIRE_ORDER for row in fetch_assessment_entries(questionnaire_id)]
+        if not all_entries:
+            self.item_window_label.config(text="No recorded check-ins yet.")
+            self.item_frequency_totals_label.config(text="")
+            return
+        end_date = max(row.entry_date for row in all_entries)
+        start_date = (datetime.fromisoformat(end_date).date() - timedelta(days=13)).isoformat()
+        self.item_window_label.config(text=f"Current 14-day window: {start_date} to {end_date}")
+        totals = build_14_day_frequency_totals(end_date, QUESTIONNAIRE_ORDER)
+        self.item_frequency_totals_label.config(text="  |  ".join(
+            f"{row['assessment_name']} derived 14-day total: {row['frequency_total_score']} "
+            f"({row['recorded_day_coverage']} of 14 check-ins)" for row in totals
+        ))
         for questionnaire_id in QUESTIONNAIRE_ORDER:
-            entries = fetch_assessment_entries(questionnaire_id)
+            entries = fetch_assessment_entries(questionnaire_id, start_date, end_date)
             analytical_groups = _analytical_groups_for_entries(questionnaire_id, entries)
-            for _, definition, definition_entries, versions in analytical_groups:
+            for _, definition, definition_entries, _ in analytical_groups:
                 if not definition_entries or questionnaire_profile_omission_reason(definition) is not None:
                     continue
-                end_date = max(row.entry_date for row in definition_entries)
-                start_date = (datetime.fromisoformat(end_date).date() - timedelta(days=13)).isoformat()
                 score_14_day = calculate_questionnaire_profile_for_window(
                     definition, definition_entries, start_date, end_date
                 )
-                version_label = (
-                    f" v{definition.definition_version}"
-                    if len(analytical_groups) > 1
-                    else ""
-                )
+                series_label = " (separate scoring series)" if len(analytical_groups) > 1 else ""
                 for idx, question in enumerate(definition.items, start=1):
                     values = [
                         _profile_response_score(question, row.items[idx - 1])
@@ -4796,16 +4869,9 @@ class PHQ9App(Tk):
                     item_score = score_14_day.item_scores[idx - 1]
                     days_present = score_14_day.item_counts[idx - 1]
                     label = question.report_label or question.prompt
-                    self.item_table.insert(
-                        "",
-                        END,
-                        values=[
-                            f"{definition.display_name}{version_label}",
-                            f"Item {idx}: {label}",
-                            f"{sum(values) / len(values):.1f}",
-                            f"{item_score} ({days_present} days)",
-                        ],
-                    )
+                    name = f"{definition.display_name}{series_label}"
+                    self.item_severity_table.insert("", END, values=(name, f"{idx}. {label}", len(values), f"{sum(values) / len(values):.1f}"))
+                    self.item_frequency_table.insert("", END, values=(name, f"{idx}. {label}", days_present, f"{score_14_day.entries_included} of 14", item_score))
 
     def refresh_events(self):
         for row in self.events_table.get_children():
@@ -5120,10 +5186,7 @@ def main():
         else:
             start, end = available_report_date_range(selected_ids)
         generate_report(start, end, str(pdf_path), selected_ids)
-        selected_labels = ", ".join(
-            f"{QUESTIONNAIRES[questionnaire_id].display_name} v{QUESTIONNAIRES[questionnaire_id].definition_version}"
-            for questionnaire_id in selected_ids
-        )
+        selected_labels = ", ".join(QUESTIONNAIRES[questionnaire_id].display_name for questionnaire_id in selected_ids)
         print(f"Saved report to {pdf_path} ({start} to {end}; {selected_labels})")
     if args.analysis_export:
         export_analysis_workbook(args.analysis_export, selected_ids)

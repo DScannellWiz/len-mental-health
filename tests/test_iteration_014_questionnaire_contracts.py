@@ -91,7 +91,7 @@ class Iteration014QuestionnaireContractTests(unittest.TestCase):
             self.assertEqual([option.label for option in definition.items[0].options], expected_regressed_labels)
             self.assertEqual(
                 [app.user_facing_response_label(definition, option) for option in definition.items[0].options],
-                ["0", "1", "2", "3"],
+                ["Not present", "Mild", "Moderate", "High"],
             )
 
     def test_phq9_item9_behavior_is_attached_only_to_stable_phq9_item_id(self):

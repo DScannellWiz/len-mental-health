@@ -1,5 +1,5 @@
-Current as of: 2026-09-18
-Last substantive update: 2026-09-18
+Current as of: 2026-09-19
+Last substantive update: 2026-09-19
 
 # Len
 
@@ -17,7 +17,7 @@ The current public prerelease, [`v0.5.0-alpha.1`](https://github.com/DScannellWi
 
 The official public binary is [`Len-Portable-0.5.0-alpha.1.zip`](https://github.com/DScannellWiz/len-mental-health/releases/download/v0.5.0-alpha.1/Len-Portable-0.5.0-alpha.1.zip), 43,700,470 bytes, with SHA-256 `F5B4DD956481294BD136345F5C6F02D708943A37851DD80B191A1A987CC0717D`. Only the latest published alpha is supported. `v0.4.1-alpha.1`, `v0.4.0-alpha.1`, `v0.3.0-alpha.1`, and earlier prereleases remain downloadable as frozen historical records; they are not rebuilt, overwritten, relabeled, or maintained as current versions. Do not download executables or ZIP files from reposts or unofficial mirrors.
 
-Known issue in the published `v0.5.0-alpha.1` binary: its Review and PDF score trends split historical definition v1 observations from new v2 observations even though those scores have the same daily-severity meaning. The current source corrects the analytical grouping; a corrected binary has not yet been released. Stored check-ins and their definition versions are preserved.
+Known issue in the published `v0.5.0-alpha.1` binary: it exposes an artificial v1/v2 distinction for PHQ-9 and GAD-7. Dan has clarified that every stored daily value is a severity rating. The current source presents one public identity per built-in questionnaire, averages item severity over recorded check-ins, and separately derives 14-day frequency scores. The stored rows and immutable snapshot keys remain intact internally. This correction has not been released.
 
 ## Current Features
 
@@ -26,11 +26,11 @@ Known issue in the published `v0.5.0-alpha.1` binary: its Review and PDF score t
 - A universal safety message before the first question and in every PDF footer; PHQ-9 item 9 context remains PHQ-9-only.
 - Previous Day and Next Day navigation, existing-date loading, future-date prevention, and unsaved-change protection.
 - History / Manage Entries tools for editing and confirmed deletion of assessments, notes, and treatment events.
-- Clearly labeled Daily Severity Scores and 14-Day Symptom Frequency Scores with recorded-day coverage.
+- Clearly separated daily severity totals, recorded-check-in average item severity, and derived 14-day frequency scores with coverage.
 - Review summaries, recent charts, treatment-cycle views, and long-term trends.
 - Chart point values available by hover, click, and keyboard.
 - A compact full-history PDF designed to support—not replace—a conversation with a licensed clinician.
-- Date-range-first PDF and normalized XLSX selection, limited to questionnaires with records in that range, with definition-version-aware trends and current 14-day item-profile records.
+- Date-range-first PDF and normalized XLSX selection, limited to questionnaires with records in that range, with unified built-in trends, severity averages, and current 14-day item-profile records.
 - One local `reports` folder for both generated outputs.
 
 ## Running from Source

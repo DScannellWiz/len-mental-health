@@ -1,5 +1,5 @@
-Current as of: 2026-09-18
-Last substantive update: 2026-09-18
+Current as of: 2026-09-19
+Last substantive update: 2026-09-19
 
 # Build and Release Notes
 
@@ -9,7 +9,7 @@ Last substantive update: 2026-09-18
 
 Only the latest published alpha is supported. `v0.4.1-alpha.1` and earlier prereleases remain frozen historical downloads; do not rebuild, overwrite, relabel, or transfer their validation evidence to a newer candidate.
 
-Preparation for a `v0.5.1-alpha.1` patch candidate is authorized from corrected protected `main` at `839017ae1d6eedf37c644ed861cb7b5acd94865f`. Its scope is the compatible PHQ-9/GAD-7 v1/v2 analytical-series correction; exact definition provenance and incompatible-version separation remain intact. The [draft candidate record and release notes](docs/releases/v0.5.1-alpha.1.md) state the validation and publication boundaries. There is no `v0.5.1-alpha.1` ZIP, hash, tag, GitHub release, upload, or publication yet. A fresh candidate must be built after the release-prep PR passes required Windows Python 3.12 CI and merges to protected `main`, then validated from zero. Publication requires separate owner approval of the exact candidate hash and proposed tag target.
+The local `v0.5.1-alpha.1` ZIP built from `95405660507028c9709f356f0081fa2c7250596e` is **rejected and superseded** by Dan's single-definition daily-severity decision. Its SHA-256 is `959FE6DFC5A0F6BE909C27CB1D4369A6EDECF9506CEA6EB7494EA70D91657BB3`; never publish or reuse those bytes. The [draft candidate record](docs/releases/v0.5.1-alpha.1.md) is retired. No v0.5.1 tag, GitHub release, upload, or publication occurred. The next version requires a fresh plan after source review, required CI, and a new exact candidate validation.
 
 Do not create a tag, GitHub Release, upload, or public announcement merely because the source and candidate tests pass. Repository visibility, source publication, binary distribution, and social-media promotion are separate owner decisions.
 
@@ -172,14 +172,14 @@ Update these together for each release:
 - Hover and click representative chart points at the left edge, center, right edge, highest score, and lowest score; confirm every callout shows the exact date, series, and score without clipping. Tab to a chart and verify Left/Right, Enter, and Escape.
 - Change Today and History date fields with and without unsaved edits. Confirm safe changes auto-load, unsafe changes remain guarded, Enter loads explicitly, and no save can apply visible responses to a date that is not loaded.
 - Confirm Review shows **Refresh**, **Import Spreadsheet**, **Generate PDF**, **Analysis Workbook**, and **Open Reports Folder**, with no separate Clinician Report tab.
-- For reports, choose the date range first; confirm only questionnaires with records in that range are eligible and that incompatible definition versions are identified rather than blended.
+- For reports, choose the date range first; confirm only questionnaires with records in that range are eligible, the built-in PHQ-9/GAD-7 public identities are unified, and genuinely incompatible future scoring series are not blended.
 - Generate the full-history clinician PDF when `reportlab` and `Pillow` are available and confirm that no companion CSV is created.
 - Confirm the clinician PDF has no clipped content, preserves every included journal entry in full, and omits duplicate raw PHQ-9 tables. Typical reports remain compact, but narrative-heavy reports may exceed four pages rather than truncate user text.
 - Confirm the PDF's current 14-day item profile shows PHQ-9 and GAD-7 symptom-present day counts, recorded-day coverage, and 0-3 frequency scores with missing days described as missing information.
 - Create same-day Therapy and Physical Therapy events with the same fictional description and confirm both event types remain distinct in the PDF and workbook.
 - With fictional data, confirm recent above-zero PHQ-9 item 9 responses are described within the latest 14-day window with coverage; older-only responses are labeled historical and do not imply current risk; and no item 9 prompt appears when every selected response is zero.
-- Generate the normalized Analysis Workbook and confirm its eight logical worksheets contain no merged cells, one logical record per row, and valid identifier relationships. Confirm **14-Day Item Profile** contains 16 derived item records.
-- Confirm historical v1 workbook item responses retain `definition_version=1` but expose only numeric daily-severity `response_label` values, never the known-regressed frequency wording; confirm v2 labels use severity wording. For the next candidate, confirm explicitly compatible PHQ-9/GAD-7 v1 and v2 scores form one chronological trend and 14-day profile while an unapproved future version remains separate. Mixed derived profile rows carry `definition_versions` and a blank singular `definition_version`; raw/detail rows retain their exact version.
+- Generate the normalized Analysis Workbook and confirm its ten logical worksheets contain no merged cells, one logical record per row, and valid identifier relationships. Confirm **Item Severity Averages**, **14-Day Frequency Totals**, and **14-Day Item Profile** separately describe average daily severity, derived totals, and item frequency, with 16 current-window frequency item records.
+- Confirm historical and current built-in item responses use the same `Not present / Mild / Moderate / High` severity labels; no normal user-facing sheet contains a v1/v2 distinction. Confirm one chronological trend per built-in questionnaire and that a genuinely incompatible future scoring series remains separate. Stored snapshot keys remain internal metadata.
 - Confirm PDF and workbook files both land under the common `reports` folder, repeated generation does not overwrite an existing file, optional open prompts work, open failures preserve the saved path, and **Open Reports Folder** opens the same location.
 - Inspect the portable folder and ZIP before launch; confirm they contain no database, report, export, log, screenshot, PHI, or PII.
 - Launch the portable package, confirm it creates `phq9_tracker.sqlite` beside the executable, save synthetic data, restart and confirm persistence, then delete/reset the synthetic database and verify a fresh launch contains zero records.

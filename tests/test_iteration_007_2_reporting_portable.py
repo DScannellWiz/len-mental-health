@@ -50,6 +50,8 @@ class NormalizedAnalysisWorkbookTests(unittest.TestCase):
             "Treatment Cycles",
             "Metadata",
             "Daily Summary",
+            "Item Severity Averages",
+            "14-Day Frequency Totals",
             "14-Day Item Profile",
         ]
         self.assertEqual(workbook.sheetnames, expected_sheets)

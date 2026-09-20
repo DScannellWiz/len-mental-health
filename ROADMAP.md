@@ -50,8 +50,8 @@ Build a privacy-first, local-only mental health tracking application that helps 
 
 ### Post-publication analytical-series correction
 
-- The published `v0.5.0-alpha.1` binary splits definition v1 and v2 trends despite unchanged daily scoring semantics. A narrow source correction explicitly joins PHQ-9 v1/v2 and GAD-7 v1/v2 for trends and derived 14-day analytics, while keeping incompatible future versions separate and preserving exact submission-version provenance.
-- A patch-level `v0.5.1-alpha.1` follow-up is recommended after protected-main review and separate candidate/release authorization. No replacement of the `v0.5.0-alpha.1` tag or asset is planned.
+- The published `v0.5.0-alpha.1` binary exposes artificial built-in v1/v2 variants. Dan's product decision makes all stored item values daily severity ratings. The local correction gives PHQ-9 and GAD-7 one public identity each, adds recorded-check-in average item severity, and keeps derived 14-day presence scoring separate. Immutable snapshot keys stay internal for safe storage compatibility; genuinely incompatible future definitions remain separate.
+- The local `v0.5.1-alpha.1` candidate from `9540566` is rejected and superseded. Choose a new version after this broader correction passes protected-main review and fresh candidate validation. The public `v0.5.0-alpha.1` tag and asset remain frozen.
 
 ## Iteration 010: Extensible Questionnaire Framework - Implementation Complete
 

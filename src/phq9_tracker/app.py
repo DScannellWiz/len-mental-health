@@ -2168,28 +2168,47 @@ def upsert_questionnaire_entries(
     source: str = "manual",
     note_tag: str = "",
 ) -> None:
+    with closing(sqlite3.connect(DB_PATH)) as conn, conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        _upsert_questionnaire_entries_in_connection(
+            conn,
+            entry_date,
+            responses_by_questionnaire,
+            notes,
+            source,
+            note_tag,
+        )
+
+
+def _upsert_questionnaire_entries_in_connection(
+    conn: sqlite3.Connection,
+    entry_date: str,
+    responses_by_questionnaire: dict[str, list[int]],
+    notes: str = "",
+    source: str = "manual",
+    note_tag: str = "",
+) -> None:
+    """Write questionnaire records using the caller's transaction."""
     if not responses_by_questionnaire:
         raise ValueError("Select at least one questionnaire to record.")
     unknown = set(responses_by_questionnaire) - set(QUESTIONNAIRES)
     if unknown:
         raise ValueError(f"Unknown questionnaire: {sorted(unknown)[0]}")
-    with closing(sqlite3.connect(DB_PATH)) as conn, conn:
-        conn.execute("PRAGMA foreign_keys = ON")
-        for questionnaire_id in QUESTIONNAIRE_ORDER:
-            if questionnaire_id not in responses_by_questionnaire:
-                continue
-            items = responses_by_questionnaire[questionnaire_id]
-            if questionnaire_id == "phq9":
-                _upsert_phq9_entry_in_connection(conn, entry_date, items, notes, source, note_tag)
-            _upsert_assessment_entry_in_connection(
-                conn,
-                questionnaire_id,
-                entry_date,
-                items,
-                notes,
-                source,
-                note_tag,
-            )
+    for questionnaire_id in QUESTIONNAIRE_ORDER:
+        if questionnaire_id not in responses_by_questionnaire:
+            continue
+        items = responses_by_questionnaire[questionnaire_id]
+        if questionnaire_id == "phq9":
+            _upsert_phq9_entry_in_connection(conn, entry_date, items, notes, source, note_tag)
+        _upsert_assessment_entry_in_connection(
+            conn,
+            questionnaire_id,
+            entry_date,
+            items,
+            notes,
+            source,
+            note_tag,
+        )
 
 
 def upsert_entry(entry_date: str, items: list[int], notes: str = "", source: str = "manual", note_tag: str = "") -> None:
@@ -2568,88 +2587,109 @@ def import_spreadsheet(path: str) -> int:
     if load_workbook is None:
         raise RuntimeError("The openpyxl package is required for Excel import.")
     workbook = load_workbook(path, read_only=True, data_only=True)
-    required = {"date", *(f"item {i}" for i in range(1, 10))}
-    target = None
-    headers = None
-    for sheet in workbook.worksheets:
-        first_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), None)
-        if not first_row:
-            continue
-        names = {str(c).strip().lower() for c in first_row if c is not None}
-        if required.issubset(names):
-            target = sheet
-            headers = [str(c).strip() if c is not None else "" for c in first_row]
-            break
-    if target is None or headers is None:
-        raise ValueError("No sheet was found with Date and Item 1 through Item 9 columns.")
+    try:
+        required = {"date", *(f"item {i}" for i in range(1, 10))}
+        target = None
+        headers = None
+        for sheet in workbook.worksheets:
+            first_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), None)
+            if not first_row:
+                continue
+            names = {str(c).strip().lower() for c in first_row if c is not None}
+            if required.issubset(names):
+                target = sheet
+                headers = [str(c).strip() if c is not None else "" for c in first_row]
+                break
+        if target is None or headers is None:
+            raise ValueError("No sheet was found with Date and Item 1 through Item 9 columns.")
 
-    col_index = {name.lower(): idx for idx, name in enumerate(headers)}
-    count = 0
-    blank_streak = 0
-    for row in target.iter_rows(min_row=2, values_only=True):
-        raw_date = row[col_index["date"]] if col_index["date"] < len(row) else None
-        entry_date = parse_date(raw_date)
-        if not entry_date:
-            blank_streak += 1
-            if blank_streak >= 50:
-                break
-            continue
+        col_index = {name.lower(): idx for idx, name in enumerate(headers)}
+        count = 0
         blank_streak = 0
-        items = []
-        for i in range(1, 10):
-            idx = col_index[f"item {i}"]
-            value = row[idx] if idx < len(row) else None
-            if value is None or str(value).strip().lower() == "nan":
+        with closing(sqlite3.connect(DB_PATH)) as conn, conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            for row in target.iter_rows(min_row=2, values_only=True):
+                raw_date = row[col_index["date"]] if col_index["date"] < len(row) else None
+                entry_date = parse_date(raw_date)
+                if not entry_date:
+                    blank_streak += 1
+                    if blank_streak >= 50:
+                        break
+                    continue
+                blank_streak = 0
                 items = []
-                break
-            score = int(value)
-            if score < 0 or score > 3:
-                raise ValueError(f"Item {i} on {entry_date} has value {score}; expected 0-3.")
-            items.append(score)
-        if len(items) != 9:
-            continue
-        notes = ""
-        if "notes" in col_index and col_index["notes"] < len(row) and row[col_index["notes"]]:
-            notes = str(row[col_index["notes"]])
-        note_tag = ""
-        if "note tag" in col_index and col_index["note tag"] < len(row) and row[col_index["note tag"]]:
-            note_tag = str(row[col_index["note tag"]])
-        upsert_entry(
-            entry_date,
-            items,
-            notes=notes if notes.lower() != "nan" else "",
-            source="spreadsheet",
-            note_tag=note_tag if note_tag.lower() != "nan" else "",
-        )
-        for event_name in ("Ketamine", "Therapy"):
-            key = event_name.lower()
-            if key in col_index:
-                value = row[col_index[key]] if col_index[key] < len(row) else None
-                if bool(value) and str(value).lower() not in ("nan", "false", "0"):
-                    add_event(entry_date, event_name, f"{event_name} marked in imported spreadsheet", dedupe=True)
-        count += 1
-    workbook.close()
-    return count
+                for i in range(1, 10):
+                    idx = col_index[f"item {i}"]
+                    value = row[idx] if idx < len(row) else None
+                    if value is None or str(value).strip().lower() == "nan":
+                        items = []
+                        break
+                    score = int(value)
+                    if score < 0 or score > 3:
+                        raise ValueError(f"Item {i} on {entry_date} has value {score}; expected 0-3.")
+                    items.append(score)
+                if len(items) != 9:
+                    continue
+                notes = ""
+                if "notes" in col_index and col_index["notes"] < len(row) and row[col_index["notes"]]:
+                    notes = str(row[col_index["notes"]])
+                note_tag = ""
+                if "note tag" in col_index and col_index["note tag"] < len(row) and row[col_index["note tag"]]:
+                    note_tag = str(row[col_index["note tag"]])
+                _upsert_questionnaire_entries_in_connection(
+                    conn,
+                    entry_date,
+                    {"phq9": items},
+                    notes=notes if notes.lower() != "nan" else "",
+                    source="spreadsheet",
+                    note_tag=note_tag if note_tag.lower() != "nan" else "",
+                )
+                for event_name in ("Ketamine", "Therapy"):
+                    key = event_name.lower()
+                    if key in col_index:
+                        value = row[col_index[key]] if col_index[key] < len(row) else None
+                        if bool(value) and str(value).lower() not in ("nan", "false", "0"):
+                            _add_event_in_connection(
+                                conn,
+                                entry_date,
+                                event_name,
+                                f"{event_name} marked in imported spreadsheet",
+                                dedupe=True,
+                            )
+                count += 1
+        return count
+    finally:
+        workbook.close()
 
 
 def add_event(event_date: str, event_type: str, description: str = "", dedupe: bool = True) -> int:
     with closing(sqlite3.connect(DB_PATH)) as conn, conn:
-        if dedupe:
-            found = conn.execute(
-                """
-                SELECT id FROM treatment_events
-                WHERE event_date = ? AND event_type = ? AND description = ?
-                """,
-                (event_date, event_type, description),
-            ).fetchone()
-            if found:
-                return int(found[0])
-        cursor = conn.execute(
-            "INSERT INTO treatment_events (event_date, event_type, description) VALUES (?, ?, ?)",
+        return _add_event_in_connection(conn, event_date, event_type, description, dedupe)
+
+
+def _add_event_in_connection(
+    conn: sqlite3.Connection,
+    event_date: str,
+    event_type: str,
+    description: str = "",
+    dedupe: bool = True,
+) -> int:
+    """Write an event using the caller's transaction."""
+    if dedupe:
+        found = conn.execute(
+            """
+            SELECT id FROM treatment_events
+            WHERE event_date = ? AND event_type = ? AND description = ?
+            """,
             (event_date, event_type, description),
-        )
-        conn.commit()
-        return int(cursor.lastrowid)
+        ).fetchone()
+        if found:
+            return int(found[0])
+    cursor = conn.execute(
+        "INSERT INTO treatment_events (event_date, event_type, description) VALUES (?, ?, ?)",
+        (event_date, event_type, description),
+    )
+    return int(cursor.lastrowid)
 
 
 def upsert_daily_event(event_date: str, event_type: str, description: str = "") -> int:
@@ -2907,6 +2947,12 @@ def export_analysis_workbook(path: str, questionnaire_ids=None) -> None:
             frame = pd.DataFrame(workbook_data[sheet_name], columns=columns)
             frame.to_excel(writer, index=False, sheet_name=sheet_name)
             worksheet = writer.sheets[sheet_name]
+            for row_index, values in enumerate(frame.itertuples(index=False, name=None), start=2):
+                for column_index, value in enumerate(values, start=1):
+                    if isinstance(value, str) and value:
+                        cell = worksheet.cell(row=row_index, column=column_index)
+                        cell.value = value
+                        cell.data_type = "s"
             worksheet.freeze_panes = "A2"
             worksheet.auto_filter.ref = worksheet.dimensions
             for cell in worksheet[1]:
@@ -3220,6 +3266,23 @@ def available_report_date_range(questionnaire_ids=None) -> tuple[str, str]:
 
 
 def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None) -> None:
+    with tempfile.TemporaryDirectory(prefix="phq9_report_charts_") as chart_dir:
+        _generate_report_with_chart_dir(
+            start,
+            end,
+            pdf_path,
+            questionnaire_ids,
+            Path(chart_dir),
+        )
+
+
+def _generate_report_with_chart_dir(
+    start: str,
+    end: str,
+    pdf_path: str,
+    questionnaire_ids,
+    chart_dir: Path,
+) -> None:
     if colors is None or PILImage is None:
         raise RuntimeError("PDF export requires reportlab and Pillow.")
     start, end = normalize_report_date_range(start, end)
@@ -3295,16 +3358,16 @@ def generate_report(start: str, end: str, pdf_path: str, questionnaire_ids=None)
 
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(pdf_path, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
-    chart_dir = Path(tempfile.mkdtemp(prefix="phq9_report_charts_"))
     chart_colors = ("#2563EB", "#0F766E", "#7C3AED", "#B45309")
     report_charts = []
     for questionnaire_index, questionnaire_id in enumerate(selected_ids):
-        for series in build_questionnaire_trend_series(
-            questionnaire_id, entries_by_questionnaire[questionnaire_id]
+        for series_index, series in enumerate(
+            build_questionnaire_trend_series(
+                questionnaire_id, entries_by_questionnaire[questionnaire_id]
+            ),
+            start=1,
         ):
-            chart_path = chart_dir / (
-                f"{questionnaire_id}_recent.png"
-            )
+            chart_path = chart_dir / f"{questionnaire_id}_series_{series_index}_recent.png"
             recent_entries = list(series.entries[-90:])
             draw_line_chart(
                 str(chart_path),

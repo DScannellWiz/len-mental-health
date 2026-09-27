@@ -1,5 +1,5 @@
-Current as of: 2026-09-19
-Last substantive update: 2026-09-19
+Current as of: 2026-09-27
+Last substantive update: 2026-09-27
 
 # Roadmap
 
@@ -25,6 +25,15 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Dependabot vulnerability alerts and GitHub secret-scanning alerts.
 - Automated tests with a Windows/Python 3.12 continuous-integration workflow for pull requests and `main`.
 - Installer and portable build scripts.
+
+## Iteration 015: Baseline Security Remediation - Complete in Source
+
+- Made each spreadsheet import atomic across legacy compatibility rows, normalized submissions and responses, notes, and imported treatment events.
+- Ensured imported workbooks and temporary PDF chart directories are closed and removed on both success and controlled failure.
+- Stored analysis-workbook user text as literal spreadsheet strings while preserving the exact text value.
+- Assigned distinct deterministic chart filenames to separate analytical series in one report.
+- Added focused fictional-data regression coverage for rollback, successful import, event deduplication, literal text handling, chart cleanup, and multi-series chart association.
+- No database migration, release packaging, candidate validation, or publication is included in this iteration.
 
 ## Iteration 013: Dependency Security Remediation and v0.4.1-alpha.1 - Complete
 

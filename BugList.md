@@ -1,5 +1,29 @@
-Current as of: 2026-09-19
-Last substantive update: 2026-09-19
+Current as of: 2026-09-27
+Last substantive update: 2026-09-27
+
+BUG: Spreadsheet import could leave a partially imported workbook
+
+Status: Fixed in Iteration 015
+
+Assessment rows and spreadsheet-derived treatment events now use one SQLite transaction. If any later row is invalid, all changes from that import are rolled back, including compatibility records, normalized questionnaire submissions and responses, notes, and treatment events. The source workbook is closed on both success and failure.
+
+---
+
+BUG: Analysis workbook could interpret user-authored text as a formula
+
+Status: Fixed in Iteration 015
+
+Non-empty string values written to analysis-workbook data cells are now explicitly stored as literal OOXML strings. Text beginning with `=`, `+`, `-`, or `@` retains its exact visible value and is not stored as a formula.
+
+---
+
+BUG: Clinician-report chart images remained in the temporary folder
+
+Status: Fixed in Iteration 015
+
+Report chart images now live in a managed temporary directory that is removed after PDF generation succeeds or raises an error. Separate analytical series also receive distinct deterministic filenames so one chart cannot overwrite another within the same report.
+
+---
 
 BUG: Published v0.5.0-alpha.1 exposes artificial PHQ-9/GAD-7 v1/v2 variants
 

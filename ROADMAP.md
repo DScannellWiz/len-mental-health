@@ -1,5 +1,5 @@
-Current as of: 2026-09-27
-Last substantive update: 2026-09-27
+Current as of: 2026-10-03
+Last substantive update: 2026-10-03
 
 # Roadmap
 
@@ -34,6 +34,8 @@ Build a privacy-first, local-only mental health tracking application that helps 
 - Assigned distinct deterministic chart filenames to separate analytical series in one report.
 - Added focused fictional-data regression coverage for rollback, successful import, event deduplication, literal text handling, chart cleanup, and multi-series chart association.
 - No database migration, release packaging, candidate validation, or publication is included in this iteration.
+- Baseline assessment reconciled at protected main `dfa669168dca77caf684970e5c7387d21eaa0cc1`: threat modeling, targeted review, PR #12 remediation, CodeQL, and Semgrep leave no unresolved validated Medium-or-higher findings from this assessment. This is not a vulnerability-free claim or release/artifact clearance.
+- Codex Security Deep Scan remains INCOMPLETE / NON-BLOCKING due to tooling/resource limits and supplies no clean-scan evidence. It is optional additional assurance under the current workflow. See the [Iteration 015 closure checkpoint](docs/Iterations/Iteration_015_Baseline_Security_Remediation.md#baseline-assessment-closure-checkpoint--2026-10-03) for evidence, limitations, and retained follow-ups.
 
 ## Iteration 013: Dependency Security Remediation and v0.4.1-alpha.1 - Complete
 

@@ -43,3 +43,55 @@ jobs:
 
       - name: Compile source and test modules
         run: python -m compileall src tests packaging
+
+  dart-core:
+    name: Dart daily core
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: successor/packages/len_core
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out source and pinned Python oracle history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12 for conformance tooling
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # Same pin as the Python job
+        with:
+          python-version: '3.12'
+
+      - name: Set up Dart 3.13.5
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
+        with:
+          sdk: '3.13.5'
+
+      - name: Resolve SDK-only dependencies offline
+        run: dart --suppress-analytics pub get --offline
+
+      - name: Check formatting
+        run: dart --suppress-analytics format --output=none --set-exit-if-changed lib test tool/conformance.dart
+
+      - name: Analyze Dart
+        run: dart --suppress-analytics analyze --fatal-infos
+
+      - name: Run core tests
+        run: dart test/core_test.dart
+
+      - name: Run boundary tests
+        run: dart test/boundary_test.dart
+
+      - name: Verify fixture identity and deliberate-failure controls
+        run: python tool/verification_test.py
+
+      - name: Verify independent conformance
+        run: python tool/verify.py dart
+
+      - name: Verify architecture
+        run: python tool/architecture_checks.py dart
+
+      - name: Verify architecture under optimized Python
+        run: python -O tool/architecture_checks.py dart

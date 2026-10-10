@@ -130,3 +130,7 @@ Windows binary distributions also contain third-party software under compatible 
 ## AI-Assisted Development
 
 This project is developed with AI-assisted software engineering under the direction of the repository owner. Daniel defines the outcomes the product should achieve and remains the final reviewer for architecture, privacy, clinical framing, and release decisions. The assistant translates those outcomes into implementation, validation, and documentation work. This division of labor is an intentional development method and part of the project's provenance.
+
+## Flutter successor domain core (Iteration 017)
+
+Python/Tkinter remains the supported application. The isolated SDK-only [daily core](successor/packages/len_core/README.md) evaluates built-in daily severity; it is not a replacement app. No UI, persistence, analytics, reporting or safety workflow is provided. See the [017 checkpoint](docs/Iterations/017_implementation_checkpoint.md) for verification and review limits.

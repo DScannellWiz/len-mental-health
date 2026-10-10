@@ -1,0 +1,1488 @@
+{
+  "schema": "len.daily-conformance/1",
+  "fictional": true,
+  "cases": [
+    {
+      "id": "daily-severity-one",
+      "rationale": "Handwritten severity sum is 7; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 1
+          },
+          {
+            "item": "gad7.item2",
+            "value": 1
+          },
+          {
+            "item": "gad7.item3",
+            "value": 1
+          },
+          {
+            "item": "gad7.item4",
+            "value": 1
+          },
+          {
+            "item": "gad7.item5",
+            "value": 1
+          },
+          {
+            "item": "gad7.item6",
+            "value": 1
+          },
+          {
+            "item": "gad7.item7",
+            "value": 1
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 7
+      }
+    },
+    {
+      "id": "daily-severity-two",
+      "rationale": "Handwritten severity sum is 14; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 2
+          },
+          {
+            "item": "gad7.item2",
+            "value": 2
+          },
+          {
+            "item": "gad7.item3",
+            "value": 2
+          },
+          {
+            "item": "gad7.item4",
+            "value": 2
+          },
+          {
+            "item": "gad7.item5",
+            "value": 2
+          },
+          {
+            "item": "gad7.item6",
+            "value": 2
+          },
+          {
+            "item": "gad7.item7",
+            "value": 2
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 14
+      }
+    },
+    {
+      "id": "daily-phq-zero",
+      "rationale": "Handwritten severity sum is 0; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "phq9",
+        "answers": [
+          {
+            "item": "phq9.item1",
+            "value": 0
+          },
+          {
+            "item": "phq9.item2",
+            "value": 0
+          },
+          {
+            "item": "phq9.item3",
+            "value": 0
+          },
+          {
+            "item": "phq9.item4",
+            "value": 0
+          },
+          {
+            "item": "phq9.item5",
+            "value": 0
+          },
+          {
+            "item": "phq9.item6",
+            "value": 0
+          },
+          {
+            "item": "phq9.item7",
+            "value": 0
+          },
+          {
+            "item": "phq9.item8",
+            "value": 0
+          },
+          {
+            "item": "phq9.item9",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 0
+      }
+    },
+    {
+      "id": "daily-phq-max",
+      "rationale": "Handwritten severity sum is 27; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "phq9",
+        "answers": [
+          {
+            "item": "phq9.item1",
+            "value": 3
+          },
+          {
+            "item": "phq9.item2",
+            "value": 3
+          },
+          {
+            "item": "phq9.item3",
+            "value": 3
+          },
+          {
+            "item": "phq9.item4",
+            "value": 3
+          },
+          {
+            "item": "phq9.item5",
+            "value": 3
+          },
+          {
+            "item": "phq9.item6",
+            "value": 3
+          },
+          {
+            "item": "phq9.item7",
+            "value": 3
+          },
+          {
+            "item": "phq9.item8",
+            "value": 3
+          },
+          {
+            "item": "phq9.item9",
+            "value": 3
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 27
+      }
+    },
+    {
+      "id": "daily-gad-zero",
+      "rationale": "Handwritten severity sum is 0; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 0
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 0
+      }
+    },
+    {
+      "id": "daily-gad-max",
+      "rationale": "Handwritten severity sum is 21; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 3
+          },
+          {
+            "item": "gad7.item2",
+            "value": 3
+          },
+          {
+            "item": "gad7.item3",
+            "value": 3
+          },
+          {
+            "item": "gad7.item4",
+            "value": 3
+          },
+          {
+            "item": "gad7.item5",
+            "value": 3
+          },
+          {
+            "item": "gad7.item6",
+            "value": 3
+          },
+          {
+            "item": "gad7.item7",
+            "value": 3
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 21
+      }
+    },
+    {
+      "id": "daily-severity-0123",
+      "rationale": "0+1+2+3=6; daily severity must not be mapped as presence first.",
+      "input": {
+        "origin": "builtin",
+        "id": "phq9",
+        "answers": [
+          {
+            "item": "phq9.item1",
+            "value": 0
+          },
+          {
+            "item": "phq9.item2",
+            "value": 1
+          },
+          {
+            "item": "phq9.item3",
+            "value": 2
+          },
+          {
+            "item": "phq9.item4",
+            "value": 3
+          },
+          {
+            "item": "phq9.item5",
+            "value": 0
+          },
+          {
+            "item": "phq9.item6",
+            "value": 0
+          },
+          {
+            "item": "phq9.item7",
+            "value": 0
+          },
+          {
+            "item": "phq9.item8",
+            "value": 0
+          },
+          {
+            "item": "phq9.item9",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 6
+      }
+    },
+    {
+      "id": "phq-mixed",
+      "rationale": "Handwritten severity sum is 12; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "phq9",
+        "answers": [
+          {
+            "item": "phq9.item1",
+            "value": 0
+          },
+          {
+            "item": "phq9.item2",
+            "value": 1
+          },
+          {
+            "item": "phq9.item3",
+            "value": 2
+          },
+          {
+            "item": "phq9.item4",
+            "value": 3
+          },
+          {
+            "item": "phq9.item5",
+            "value": 0
+          },
+          {
+            "item": "phq9.item6",
+            "value": 1
+          },
+          {
+            "item": "phq9.item7",
+            "value": 2
+          },
+          {
+            "item": "phq9.item8",
+            "value": 3
+          },
+          {
+            "item": "phq9.item9",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 12
+      }
+    },
+    {
+      "id": "item9-contribution",
+      "rationale": "Handwritten severity sum is 3; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "phq9",
+        "answers": [
+          {
+            "item": "phq9.item1",
+            "value": 0
+          },
+          {
+            "item": "phq9.item2",
+            "value": 0
+          },
+          {
+            "item": "phq9.item3",
+            "value": 0
+          },
+          {
+            "item": "phq9.item4",
+            "value": 0
+          },
+          {
+            "item": "phq9.item5",
+            "value": 0
+          },
+          {
+            "item": "phq9.item6",
+            "value": 0
+          },
+          {
+            "item": "phq9.item7",
+            "value": 0
+          },
+          {
+            "item": "phq9.item8",
+            "value": 0
+          },
+          {
+            "item": "phq9.item9",
+            "value": 3
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 3
+      }
+    },
+    {
+      "id": "daily-unanswered-distinct",
+      "rationale": "Null is unanswered; it cannot be promoted to an explicit zero or complete total.",
+      "input": {
+        "origin": "builtin",
+        "id": "phq9",
+        "answers": [
+          {
+            "item": "phq9.item1",
+            "value": null
+          },
+          {
+            "item": "phq9.item2",
+            "value": 0
+          },
+          {
+            "item": "phq9.item3",
+            "value": 0
+          },
+          {
+            "item": "phq9.item4",
+            "value": 0
+          },
+          {
+            "item": "phq9.item5",
+            "value": 0
+          },
+          {
+            "item": "phq9.item6",
+            "value": 0
+          },
+          {
+            "item": "phq9.item7",
+            "value": 0
+          },
+          {
+            "item": "phq9.item8",
+            "value": 0
+          },
+          {
+            "item": "phq9.item9",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "incomplete",
+        "missing": [
+          "phq9.item1"
+        ]
+      }
+    },
+    {
+      "id": "omitted-one",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 0
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "incomplete",
+        "missing": [
+          "gad7.item7"
+        ]
+      }
+    },
+    {
+      "id": "all-omitted",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "phq9",
+        "answers": []
+      },
+      "expected": {
+        "kind": "incomplete",
+        "missing": [
+          "phq9.item1",
+          "phq9.item2",
+          "phq9.item3",
+          "phq9.item4",
+          "phq9.item5",
+          "phq9.item6",
+          "phq9.item7",
+          "phq9.item8",
+          "phq9.item9"
+        ]
+      }
+    },
+    {
+      "id": "all-null",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": null
+          },
+          {
+            "item": "gad7.item2",
+            "value": null
+          },
+          {
+            "item": "gad7.item3",
+            "value": null
+          },
+          {
+            "item": "gad7.item4",
+            "value": null
+          },
+          {
+            "item": "gad7.item5",
+            "value": null
+          },
+          {
+            "item": "gad7.item6",
+            "value": null
+          },
+          {
+            "item": "gad7.item7",
+            "value": null
+          }
+        ]
+      },
+      "expected": {
+        "kind": "incomplete",
+        "missing": [
+          "gad7.item1",
+          "gad7.item2",
+          "gad7.item3",
+          "gad7.item4",
+          "gad7.item5",
+          "gad7.item6",
+          "gad7.item7"
+        ]
+      }
+    },
+    {
+      "id": "negative",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": -1
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "severityOutOfRange",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "four",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 4
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "severityOutOfRange",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bool",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": true
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "invalidSeverityType",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "false",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": false
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "invalidSeverityType",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "float",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 1.0
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "invalidSeverityType",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "string",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": "0"
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "invalidSeverityType",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "blank",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": ""
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "invalidSeverityType",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "list",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": []
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "invalidSeverityType",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "map",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": {}
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "invalidSeverityType",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "missing-then-invalid",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": null
+          },
+          {
+            "item": "gad7.item2",
+            "value": 4
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "severityOutOfRange",
+            "item": "gad7.item2"
+          }
+        ]
+      }
+    },
+    {
+      "id": "invalid-then-missing",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 4
+          },
+          {
+            "item": "gad7.item2",
+            "value": null
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "severityOutOfRange",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "multiple-invalid",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 4
+          },
+          {
+            "item": "gad7.item2",
+            "value": true
+          },
+          {
+            "item": "gad7.item3",
+            "value": null
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "severityOutOfRange",
+            "item": "gad7.item1"
+          },
+          {
+            "code": "invalidSeverityType",
+            "item": "gad7.item2"
+          }
+        ]
+      }
+    },
+    {
+      "id": "custom-reserved",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "custom",
+        "id": "phq9",
+        "answers": []
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "unsupportedQuestionnaire",
+            "item": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "custom-ninth",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "custom",
+        "id": "fictional.nine",
+        "answers": []
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "unsupportedQuestionnaire",
+            "item": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "unsupported-builtin",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "other",
+        "answers": []
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "unsupportedQuestionnaire",
+            "item": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "extra-item",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 0
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          },
+          {
+            "item": "gad7.item8",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "unknownItem",
+            "item": "gad7.item8"
+          }
+        ]
+      }
+    },
+    {
+      "id": "duplicate",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 0
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          },
+          {
+            "item": "gad7.item1",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "duplicateItem",
+            "item": "gad7.item1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "foreign-item",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 0
+          },
+          {
+            "item": "gad7.item2",
+            "value": 0
+          },
+          {
+            "item": "gad7.item3",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 0
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "phq9.item9",
+            "value": 3
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "unknownItem",
+            "item": "phq9.item9"
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown-null",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "fictional.item",
+            "value": null
+          }
+        ]
+      },
+      "expected": {
+        "kind": "invalid",
+        "errors": [
+          {
+            "code": "unknownItem",
+            "item": "fictional.item"
+          }
+        ]
+      }
+    },
+    {
+      "id": "reordered",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item7",
+            "value": 2
+          },
+          {
+            "item": "gad7.item6",
+            "value": 1
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item4",
+            "value": 3
+          },
+          {
+            "item": "gad7.item3",
+            "value": 2
+          },
+          {
+            "item": "gad7.item2",
+            "value": 1
+          },
+          {
+            "item": "gad7.item1",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 9
+      }
+    },
+    {
+      "id": "omitted-value",
+      "rationale": "An item with no supplied value is unanswered, never zero or an invalid supplied value.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1"
+          }
+        ]
+      },
+      "expected": {
+        "kind": "incomplete",
+        "missing": [
+          "gad7.item1",
+          "gad7.item2",
+          "gad7.item3",
+          "gad7.item4",
+          "gad7.item5",
+          "gad7.item6",
+          "gad7.item7"
+        ]
+      }
+    },
+    {
+      "id": "daily-gad-severity-0123",
+      "rationale": "Handwritten severity sum is 6; no frequency mapping.",
+      "input": {
+        "origin": "builtin",
+        "id": "gad7",
+        "answers": [
+          {
+            "item": "gad7.item1",
+            "value": 0
+          },
+          {
+            "item": "gad7.item2",
+            "value": 1
+          },
+          {
+            "item": "gad7.item3",
+            "value": 2
+          },
+          {
+            "item": "gad7.item4",
+            "value": 3
+          },
+          {
+            "item": "gad7.item5",
+            "value": 0
+          },
+          {
+            "item": "gad7.item6",
+            "value": 0
+          },
+          {
+            "item": "gad7.item7",
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "kind": "complete",
+        "total": 6
+      }
+    },
+    {
+      "id": "daily-phq-item9-unanswered",
+      "rationale": "Independent approved daily contract case.",
+      "input": {
+        "origin": "builtin",
+        "id": "phq9",
+        "answers": [
+          {
+            "item": "phq9.item1",
+            "value": 0
+          },
+          {
+            "item": "phq9.item2",
+            "value": 0
+          },
+          {
+            "item": "phq9.item3",
+            "value": 0
+          },
+          {
+            "item": "phq9.item4",
+            "value": 0
+          },
+          {
+            "item": "phq9.item5",
+            "value": 0
+          },
+          {
+            "item": "phq9.item6",
+            "value": 0
+          },
+          {
+            "item": "phq9.item7",
+            "value": 0
+          },
+          {
+            "item": "phq9.item8",
+            "value": 0
+          },
+          {
+            "item": "phq9.item9",
+            "value": null
+          }
+        ]
+      },
+      "expected": {
+        "kind": "incomplete",
+        "missing": [
+          "phq9.item9"
+        ]
+      }
+    }
+  ]
+}

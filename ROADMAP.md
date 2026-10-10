@@ -318,3 +318,7 @@ The planned September 2026 Closed Alpha was abandoned before enrollment or distr
 ## Long-Term Direction
 
 Support multiple validated mental health assessment instruments while remaining local-first, privacy-first, open source, easy to use, and clinically useful for discussion.
+
+## 2026-10-10 successor update
+
+Flutter is owner-approved as the Windows-first successor architecture. Iteration 017 implements only a pure-Dart daily-severity core and fictional conformance suite, pending owner review. Python/Tkinter remains supported. Next scopes require separate authorization; partial-record persistence, analytics/date/rounding policy and safety workflows remain deferred. Signing and clean-machine trust are mandatory release gates; extra platforms require native validation.

@@ -1,0 +1,6 @@
+name: len_core
+description: Len's pure-Dart built-in daily severity domain core.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.13.0 <4.0.0'

@@ -1,0 +1,198 @@
+{
+  "archive_sha256": "c59d0f32ab5d4198007b8b873de96752c8f9dec473c8117a6dc563fd039efe36",
+  "archive_path": "experiments/iteration_016_conformance_proof/fixtures/core.json",
+  "cases": [
+    {
+      "id": "daily-severity-one",
+      "operation": "daily_total",
+      "rationale": "Each severity 1 contributes exactly one; distinguishes severity 1 from 2.",
+      "input": {
+        "definition": "gad",
+        "responses": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "expected": {
+        "status": "ok",
+        "total": 7,
+        "answered": 7,
+        "unanswered": 0
+      }
+    },
+    {
+      "id": "daily-severity-two",
+      "operation": "daily_total",
+      "rationale": "Each severity 2 contributes exactly two; seven times two is 14.",
+      "input": {
+        "definition": "gad",
+        "responses": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ]
+      },
+      "expected": {
+        "status": "ok",
+        "total": 14,
+        "answered": 7,
+        "unanswered": 0
+      }
+    },
+    {
+      "id": "daily-phq-zero",
+      "operation": "daily_total",
+      "rationale": "Nine explicit zeros sum to zero and are all answered.",
+      "input": {
+        "definition": "phq",
+        "responses": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "status": "ok",
+        "total": 0,
+        "answered": 9,
+        "unanswered": 0
+      }
+    },
+    {
+      "id": "daily-phq-max",
+      "operation": "daily_total",
+      "rationale": "Nine severity threes sum to 27.",
+      "input": {
+        "definition": "phq",
+        "responses": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "expected": {
+        "status": "ok",
+        "total": 27,
+        "answered": 9,
+        "unanswered": 0
+      }
+    },
+    {
+      "id": "daily-gad-zero",
+      "operation": "daily_total",
+      "rationale": "Seven explicit zeros sum to zero.",
+      "input": {
+        "definition": "gad",
+        "responses": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "status": "ok",
+        "total": 0,
+        "answered": 7,
+        "unanswered": 0
+      }
+    },
+    {
+      "id": "daily-gad-max",
+      "operation": "daily_total",
+      "rationale": "Seven severity threes sum to 21.",
+      "input": {
+        "definition": "gad",
+        "responses": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ]
+      },
+      "expected": {
+        "status": "ok",
+        "total": 21,
+        "answered": 7,
+        "unanswered": 0
+      }
+    },
+    {
+      "id": "daily-severity-0123",
+      "operation": "daily_total",
+      "rationale": "0+1+2+3=6; daily severity must not be mapped as presence first.",
+      "input": {
+        "definition": "phq",
+        "responses": [
+          0,
+          1,
+          2,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "status": "ok",
+        "total": 6,
+        "answered": 9,
+        "unanswered": 0
+      }
+    },
+    {
+      "id": "daily-unanswered-distinct",
+      "operation": "daily_total",
+      "rationale": "Null is unanswered; it cannot be promoted to an explicit zero or complete total.",
+      "input": {
+        "definition": "phq",
+        "responses": [
+          null,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "status": "unanswered",
+        "total": null,
+        "answered": 8,
+        "unanswered": 1
+      }
+    }
+  ]
+}

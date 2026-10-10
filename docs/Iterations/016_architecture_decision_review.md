@@ -1,0 +1,88 @@
+# Len Iteration 016: consolidated architecture decision review
+
+Historical recommendation preserved. **Owner decision update, October 10, 2026:** Dan approved Flutter as Windows-first successor and accepted sequencing; see the [accepted ADR](../decisions/0016-flutter-successor.md) and [current checkpoint](016_decision_checkpoint.md). Implementation remains unauthorized. Provisional/pending language below describes the review before that decision.
+
+2026-10-10. **Recommendation: formally select Flutter for Len's Windows-first successor architecture, subject to Dan's explicit approval of the proposed ADR.** Status remains **proposed; Flutter is not adopted**. The current Python/Tkinter application remains the supported alpha/reference implementation.
+
+The five proofs establish enough architectural feasibility to justify staged production engineering. They do not establish production readiness, full clinical parity, safe real-user migration, trustworthy distribution or non-Windows quality. No observed architecture blocker remains in the tested scope. Confidence is strongest for a Windows-first modular application and weaker for cross-platform delivery and comparison with untested alternatives.
+
+## Evidence reconciled
+
+Results below are inherited and checked against existing reports; no experiment, build or test was repeated. Counts describe different, sometimes overlapping kinds of checks and must not be summed into one certification total.
+
+| Proof / source | Verified result | Important limit |
+|---|---|---|
+| [Windows feasibility](016_evidence_provenance.md) | 14 automated tests: 2 domain, 7 persistence, 4 widget, 1 Windows integration. Local release ran; quit/relaunch persisted data. Dan reported usable Narrator and successful disconnected save. | One Windows host, unsigned build. Offline condition human-reported; endpoint sampling was not comprehensive network tracing. |
+| [Conformance](016_evidence_provenance.md) | 20/20 three-way fictional cases; 8 Python test methods and 12 Dart checks. Independent expectations and pinned Python functions agree with Dart. | Adapter projections are disclosed. No tie-rounding/partial-period policy, complete safety-event parity, real migration or production core certification. |
+| [Storage/recovery](016_evidence_provenance.md) | 44/44 scenarios, including 21 owned-process interruptions; 5/5 static boundaries. Durable receipts, conflicts, snapshots, stage validation, catalog promotion and fail-closed recovery. | Process termination is not power loss. Synthetic schema; registered backups only. Native IO faults and arbitrary hostile imports unproved. |
+| [Reusable accessibility](016_evidence_provenance.md) | 27/27 tests, four screens, 100/225/300% widget matrix, native live scaling and contrast, strong focus, text equivalents. Dan confirmed all four final keypad shortcuts with Num Lock on/off. | Broad Narrator feedback, no exact speech transcript; complex controls, large history and other machines/platforms unproved. |
+| [Reporting](016_evidence_provenance.md) and [CR remedy](016_evidence_provenance.md) | Initial 31 Dart checks passed; independent 18/22 exposed one CR mismatch. Remedy: 13 Dart checks and 49 focused independent checks pass, including the four failed gates. 32 text cases round-trip in OOXML decoding and native Excel; 157 sample facts reconcile; PDF/model bytes unchanged. | The original 22-check suite was not relabeled as fully passing. Corrected XLSX adapter was not rebuilt into the previous Windows executable. Full Len reports and PDF/UA remain unproved. |
+
+Supplied reference main is `ea9802b91eee001c6c0e22103f3e13446103bb9e`. Conformance verified it during that proof; this review makes no fresh claim about remote main/protection state. Flutter 3.47.6 / Dart 3.13.5 are the tested toolchain, not automatically approved production pins.
+
+Original release footprint: 29,077,988 bytes unpacked, 12,593,310-byte ZIP. One startup input-idle observation was 3,020 ms; one process snapshot was 119.1 MiB working set / 163.3 MiB private bytes. These are small-app observations, not production budgets, installed footprint or comparative benchmarks. Signing/reputation and clean-machine prerequisites remain unverified.
+
+### Superseded checkpoints and design changes
+
+The [architecture design](016_evidence_provenance.md) is the structural basis; its recommendation to keep Flutter provisional pending proofs was appropriate then. Later reports resolve its initial focus/live-scaling/keyboard gaps. The accessibility report's final human confirmation supersedes its historical pending/failed shortcut notes; it does not certify every Narrator mode or transfer every earlier screenshot to final bytes.
+
+The storage proof improves the earlier rename-based promotion proposal: a validated separate generation becomes authoritative through **one control-catalog SQLite commit**. Recovery follows the committed pointer, never guesses the newest file or silently selects older data. Retain this refinement in future design; it still requires IO durability and corruption safeguards.
+
+The reporting prerequisite conflict and initial FAIL remain historical evidence. The approved compatible proof graph and CR adapter resolve those particular failures. The adapter uses standard ST_Xstring encoding and literal-token shielding, once at the plain-string boundary; no model normalization, package fork or ZIP patch. Ordinary openpyxl/excel_plus values are not universal semantic string readers. Future OOXML imports need proper decoding and limits; do not introduce import merely because export passed.
+
+**Proposed sequencing change:** the original design listed trusted Windows distribution and non-Windows smoke evidence before formal adoption. Those requirements have not passed. This ADR proposes making trusted distribution a release gate and native non-Windows validation a gate before committing to each platform. They do not block choosing a replaceable Windows-first architectural foundation. If Dan retains them as preselection conditions, Flutter must remain provisional; this review does not silently waive them.
+
+## Architecture and maintainability judgment
+
+Keep a modular monolith: Flutter presentation/shared accessibility → typed application services → pure-Dart domain and ports → SQLite worker, report renderers and narrow platform adapters. Only bootstrap wires concrete dependencies. UI cannot execute arbitrary SQL, filesystem, shell or raw platform channels. Isolates are concurrency tools, not security sandboxes.
+
+One core owns severity, missingness, identities and approved policies; one consistent immutable ReportModel supplies both outputs. One worker serializes storage commands and owns connections; operation receipts/revisions distinguish unknown outcomes from successful saves. Shared accessibility owns traversal, reveal, focus, semantics, scrolling, scaling and theme tokens. Categories 1/2 are framework/shared adaptation; live Windows settings use category 3 reusable engineering: a 96-line native adapter plus runner wiring, zero per-screen native code. No category-4 technique or engine fork was needed. Guide required content only. This is positive evidence that engineering effort can stay centralized, not a guarantee for arbitrary future controls.
+
+Prefer a pure-Dart successor domain, with Python retained as development oracle/reference rather than a required runtime sidecar. Reuse approved semantics, fixtures, reconciliation contracts, architecture patterns and learned regressions. Review/reimplement production components rather than transplant synthetic schemas, proof defaults, diagnostic code, cached package configurations or test fault hooks. Use at most the four proposed packages when needed; start with core alone. Require dependency/import rules and clear adapter ownership rather than adding an ORM, DI framework or generic plugin system prematurely.
+
+**Flutter versus Tauri 2:** Flutter is the preferred actionable choice on this evidence because Len's central uncertainty—maintainable Windows accessibility combined with local data/reporting—now has working reusable patterns. A web frontend has not been demonstrated necessary for Len. No equivalent Tauri proof or retained comparative result was available in the reviewed report corpus; therefore there is no justified claim that Flutter beats Tauri on every platform, performance or accessibility, or that Tauri fails a hard gate. The comparative preference is an engineering judgment about demonstrated fit, not a head-to-head result. Tauri remains the fallback if a fundamental Flutter requirement later cannot be met sustainably. Another spike is not presently required by an observed architecture blocker and is not authorized here.
+
+## Remaining-risk classification
+
+Each item has one primary classification. A gate's failure may require a replaceable dependency/adapter change; only an inability to satisfy a non-negotiable sustainably escalates it to an architecture blocker.
+
+| ID | Risk / required disposition | Classification |
+|---|---|---|
+| B1 | Mandatory cloud/account/transmission, weakened OS protection, sole-copy mutation, unrecoverable semantic changes or repeated native accessibility/engine hacks become necessary. Reject/reconsider architecture if unavoidable. None observed. | **Architecture blocker — conditional trigger** |
+| B2 | No compatible, sustainable local renderer/storage/security path can meet mandatory product requirements. Replace adapter first; if none exists, reopen selection. None established by present evidence. | **Architecture blocker — conditional trigger** |
+| P1 | Full domain parity, historical-definition mapping, custom rules, inclusive dates, missing/all-missing periods, approved tie-rounding and partial-record handling; review fixture vocabulary before production use. | **Production implementation gate** |
+| P2 | Item 9 trusted identity defenses plus actual trigger timing, prompts, copy and report context. Binding-only proof is insufficient. No custom clinical interpretation. | **Production implementation gate** |
+| P3 | Actual legacy-format importer: source-preserving snapshot, exact field/relationship reconciliation, unsupported-format refusal, independent semantic checks and consent before promotion. | **Production implementation gate** |
+| P4 | Disk-full/access-denied/native COMMIT IO, storage faults, worker loss/timeouts/cancellation, initializer failure, catalog corruption recovery and retained-generation handling. No automatic stale fallback. | **Production implementation gate** |
+| P5 | Untrusted DB/backup hardening, bounds/schema/extension restrictions and native SQLite build suitability. Existing OMIT_AUTHORIZATION/OMIT_PROGRESS_CALLBACK limit defenses/cancellation; select/test a suitable build if required. | **Production implementation gate** |
+| P6 | Shared accessibility for dialogs/menus, large/virtualized lists and charts, focus restoration, Narrator modes/keyboards, reduced motion and complex layouts; settings adapter lifecycle/error hardening; remove key diagnostic. | **Production implementation gate** |
+| P7 | Full reporting contracts including workbook 1.4 relationships, long-note/cell-limit policy, report revisions, broader Unicode/shaping/fonts and approved PDF accessibility/tagging/reading order. No PDF/UA claim. | **Production implementation gate** |
+| P8 | ST_Xstring once-only encoding, decoder/import fidelity, literal escapes and upgrades; independent reader regression gates. Different spreadsheet consumers remain untested. | **Production implementation gate** |
+| P9 | Private storage permissions, encryption/key-recovery decision, backup retention, logs/temp/clipboard/export residue, crash-stage cleanup, file-grant UI and sync-folder policy. Local-first does not mean encrypted or securely erased. | **Production implementation gate** |
+| P10 | Integrated UI/storage/report isolation, bounded queues/snapshots, cancellation, years of fictional data and approved startup/memory/render budgets. Tiny isolated proofs are not a combined production app. | **Production implementation gate** |
+| R1 | Signed artifact, Windows reputation/trust, standard-user clean-machine install/run/upgrade/uninstall, native/runtime prerequisites and schema/app rollback without lost later writes. Never bypass SmartScreen/App Control. | **Release/distribution gate** |
+| R2 | GPLv3 project basis, dependency/font/runtime/native notices, excel_plus inherited attribution/provenance, mobile-store terms if targeted, exact native asset/build-hook provenance and reproducible locked builds. Experimental pins are not production approval. | **Release/distribution gate** |
+| R3 | Security/advisory refresh, dependency maintenance ownership, SBOM/exit paths and exact-artifact failed-network-attempt tracing plus disconnected save/review/export/backup/recovery. Previous sampling/advisory absence is not clearance. | **Release/distribution gate** |
+| R4 | Independent Windows machine/AT acceptance on supported versions and final complete artifact identity. Final EXE alone does not identify Flutter's Dart payload. | **Release/distribution gate** |
+| R5 | Native accessibility/storage/lifecycle/packaging tests for macOS/Linux/mobile, mobile backup/share privacy defaults, and per-platform license/distribution compatibility before platform claims/releases. | **Release/distribution gate for each future platform** |
+| D1 | Shipping additional platforms, automatic updater/optional checks, WAL optimization, richer charts and automatic catalog repair. Prioritize later; explicit approval remains necessary for network behavior. | **Deferred enhancement** |
+
+Basic durable recovery is P4; only automation beyond a safe documented recovery path is deferred. Other-platform implementation priority is deferred, while platform quality/privacy gates cannot be deferred once that platform is offered. None of these classifications permits relaxing scoring, privacy or data-integrity requirements.
+
+## Smallest safe next production iteration — proposed only
+
+**Iteration 017: pure-Dart daily-severity core and application-service contract.** One bounded capability: compute complete built-in daily severity totals and represent incomplete input explicitly. It creates production-quality core code only after separate approval; no Flutter screens or persistent user workflow yet.
+
+Prerequisites: Dan approves architecture/ADR and this scope separately; review the relevant independent fixture expectations and trusted built-in identity contract; confirm the authorized repository baseline and development location at that time; approve package/license/source attribution and tested toolchain policy. If routine prerequisites are missing, provide manual setup commands and stop.
+
+Boundaries: one `len_core` package with SDK-only domain types, trusted builtin identifiers, severity validation, immutable results and a typed calculation service. PHQ/GAD severity totals are in scope, not prompts, safety UX, period/presence analytics, custom questionnaire implementation, persistence, import, exports, Python refactor, packaging or any release. Keep existing fixtures intact; add separately reviewed expectations if needed. Do not copy experimental code unchanged merely because its tests passed.
+
+Acceptance: core runs without Flutter/SQLite/IO/plugins/network; valid daily integers 0–3 produce PHQ totals 0–27 and GAD totals 0–21, including independent severity-1/2 cases. Invalid/boolean/noninteger values and mismatched identities/answer counts fail explicitly; incomplete answers remain incomplete, never zero-filled. Numeric output adds no clinical interpretation or Item 9 action. Focused Python/Dart/hand-calculated comparisons and invalid-input/property checks pass; import boundaries are mechanically enforced. Production Len and all user databases remain unchanged. Review source/docs and stop before expanding into UI or persistence.
+
+Retirement safeguards: Python remains the supported app, semantic oracle subject to approved rules, existing-data reader and report/workflow reference. No dual-write/shared database, automatic discovery, in-place conversion, silent reverse-sync or release replacement. Later parity needs all scoring/safety/report/accessibility behavior, every supported source-format migration, recovery and trusted distribution. A separately authorized opt-in pilot preserves source and known-good prior generations, reconciles before promotion and explains post-cutover divergence. Only Dan can retire Python after sustained successor acceptance and a support/retention plan; never delete historical sources/releases/user data automatically.
+
+## Owner review and stop boundary
+
+Adoption approval must accept the sequencing above and Windows-first scope without promising mobile parity. Before relevant implementation gates, decide supported Windows versions/performance budgets, PDF accessibility target, encryption/key recovery/retention, initial legacy-format range, installed/portable distribution and export-contract limits. Optional network/update features remain separately controlled.
+
+This review created three Markdown documents only: this report, [ADR, subsequently accepted](../decisions/0016-flutter-successor.md), and [compact checkpoint](016_decision_checkpoint.md). No experiments/research refresh/security reassessment, tool installation, production/reference/proof edits, database access, Git operation or public-state change. Source synchronization is not performed; generated proof data/outputs must never be staged. The review was a recommendation; the owner decision is now recorded separately and does not authorize implementation.

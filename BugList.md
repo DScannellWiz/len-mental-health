@@ -1,5 +1,5 @@
-Current as of: 2026-09-27
-Last substantive update: 2026-09-27
+Current as of: 2026-10-10
+Last substantive update: 2026-10-10
 
 BUG: Spreadsheet import could leave a partially imported workbook
 
@@ -407,3 +407,12 @@ Validation:
 - Daniel passed repeat PDF/workbook generation, Open Reports Folder, real-output fidelity/readability, Spinbox, and 008.1 regression checks.
 - The packaged five-page PDF and eight-sheet workbook passed content, structure, and rendered visual inspection using project-created fictional data only.
 - A packaging-only Tcl/Tk discovery defect found in the first attempt was corrected before the candidate was accepted.
+
+
+## Iteration 017 verification remediation (2026-10-10)
+
+- P2 historical fixture identity drift: resolved locally. Restored PHQ-9 mixed-severity and PHQ item 1 unanswered cases from the verified archive. Retained newer variants under unique IDs. Added an independently pinned baseline and mutation regression checks.
+- P2 architecture enforcement disabled by Python optimization: resolved locally. Replaced enforcement assertions with explicit failures and a fixed seven-check completion requirement. Forbidden-import/dependency controls fail under normal Python, `-O` and `PYTHONOPTIMIZE` without a success summary.
+- Dart CI coverage: separate job added; local package checks and workflow parsing/structural checks pass. GitHub-hosted execution and owner review remain pending. Existing Python job unchanged.
+
+See [Iteration 017 evidence](docs/Iterations/017_implementation_evidence.md). No production scoring defect or domain/API change is involved.

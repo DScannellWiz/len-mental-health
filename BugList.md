@@ -1,6 +1,14 @@
 Current as of: 2026-10-10
 Last substantive update: 2026-10-10
 
+BUG: October 2026 dependency advisories
+
+Status: Isolated remediation tested; Dan/Bob review pending; public alpha unchanged.
+
+The controlled release pins were affected by Pillow native/parser advisories, pypdf resource-exhaustion advisories, and a setuptools legacy Windows installation advisory. The assessment branch uses Pillow 13.0.0, pypdf 6.21.2, and setuptools 84.1.0 with unchanged application source. A harmless chart-sheet image reaches Pillow during spreadsheet import; the ordinary worksheet-image control does not. This proves parser reachability, not exploitation. The prior 61 public affected-version records exclude the candidate versions, but the authenticated repository alert inventory remains unavailable. Tests, packaging evidence, unresolved exposure, and the next review boundary are in the [security checkpoint](docs/Iterations/security_dependency_20261024_checkpoint.md).
+
+---
+
 BUG: Spreadsheet import could leave a partially imported workbook
 
 Status: Fixed in Iteration 015

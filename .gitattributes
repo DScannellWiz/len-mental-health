@@ -1,0 +1,2 @@
+# Preserve the exact upstream wheel notice bytes across Git checkouts.
+THIRD_PARTY_NOTICES/Pillow-13.0.0/licenses/LICENSE -text -diff

@@ -9,6 +9,8 @@ Build a privacy-first, local-only mental health tracking application that helps 
 
 ## Current Capabilities
 
+- Isolated October 2026 dependency remediation assessed with Pillow 13.0.0, pypdf 6.21.2, and setuptools 84.1.0; local validation passed, with owner review and any publication still pending. See the [security checkpoint](docs/Iterations/security_dependency_20261024_checkpoint.md). This does not update the public alpha or change the separate successor iteration.
+
 - PHQ-9 daily tracking.
 - GAD-7 daily tracking.
 - Dynamic Today's Check-In workflow with independent questionnaire selection and completion status.

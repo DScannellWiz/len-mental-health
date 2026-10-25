@@ -21,6 +21,10 @@ The visible application name is **Len**. The executable remains `PHQ9Tracker.exe
 
 ## Dependencies
 
+The isolated [October 2026 security assessment](docs/Iterations/security_dependency_20261024_checkpoint.md) changes only the controlled pins for Pillow (13.0.0), pypdf (6.21.2), and setuptools (84.1.0), plus the matching Pillow notice. Its Windows assessment bundle excludes pypdf, setuptools, and olefile, but includes Pillow image plugins and native code. This evidence applies to that exact assessment artifact; it does not validate or replace the published alpha.
+
+For this environment, set process-local `TEMP` and `TMP` to a dedicated writable assessment directory before dependency installation, tests, and builds. Do not change Windows protections or machine-wide temporary-folder settings. Preserve the canonical bytes of `LICENSE` and `THIRD_PARTY_NOTICES`: automatic LF-to-CRLF checkout conversion causes the hash verifier to fail. Use a byte-preserving staging copy (for example, `git -c core.autocrlf=false archive HEAD` for committed files) and copy the new Pillow notice verbatim from its verified wheel. The single-path `.gitattributes` rule preserves that notice's exact upstream CRLF bytes. Keep all verifier checks enabled. The assessment restored existing notice bytes only in its disposable build copy; it did not alter unrelated source notices or Git configuration.
+
 Recommended build environment:
 
 - Python 3.12.10 from python.org with Tcl/Tk 8.6.15 installed for reproduction of the audited `0.3.0-alpha.1` runtime

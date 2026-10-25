@@ -2,7 +2,7 @@
 
 Len is licensed under GNU GPL version 3. See the `LICENSE` file at the distribution root. The GPL does not replace the licenses and notices for third-party software included in the Windows package.
 
-This directory preserves the upstream license, copyright, and notice text required for the exact `0.3.0-alpha.1` Windows redistribution build. The text files are copied verbatim from the installed distributions or their matching source distributions. `packaging/third_party_notice_manifest.json` records their SHA-256 hashes, and the release build fails if a required file, hash, runtime version, or package version differs.
+This directory preserves the upstream license, copyright, and notice text for the controlled Windows packaging inputs recorded in `packaging/third_party_notice_manifest.json`. The text files are copied verbatim from the installed distributions or their matching source distributions, and the release build fails if a required file, hash, runtime version, or package version differs. The October 2026 assessment replaces the Pillow notice with the exact 13.0.0 wheel text; published historical artifacts retain their original notices and bytes.
 
 ## Runtime components
 
@@ -13,7 +13,7 @@ This directory preserves the upstream license, copyright, and notice text requir
 | PyInstaller bootloader and related files | 6.22.1 | GPL-2.0-or-later with the documented bootloader exception; runtime hooks are Apache-2.0 | `PyInstaller-6.22.1/licenses/COPYING.txt` |
 | pandas | 3.0.3 | BSD-3-Clause | `pandas-3.0.3/LICENSE` |
 | NumPy and bundled code | 2.5.0 | BSD-3-Clause and the compatible licenses identified by the upstream wheel, including 0BSD, MIT, zlib, CC0-1.0, OpenBLAS/LAPACK, and the GCC runtime exception | `NumPy-2.5.0/` |
-| Pillow and embedded image/font libraries | 12.2.0 | MIT-CMU plus the complete upstream wheel inventory for materially embedded libraries, including Brotli, FreeType, HarfBuzz, libavif, libjpeg-turbo, libpng, libtiff, libwebp, Little CMS, OpenJPEG, and zlib | `Pillow-12.2.0/licenses/LICENSE` |
+| Pillow and embedded image/font libraries | 13.0.0 | MIT-CMU plus the complete upstream wheel inventory for materially embedded libraries, including Brotli, FreeType, HarfBuzz, libavif, libjpeg-turbo, libpng, libtiff, libwebp, Little CMS, OpenJPEG, and zlib | `Pillow-13.0.0/licenses/LICENSE` |
 | ReportLab and bundled fonts | 5.0.0 | BSD-style ReportLab license plus the included DarkGarden and Bitstream Vera font notices | `ReportLab-5.0.0/` |
 | OpenPyXL | 3.1.5 | MIT | `OpenPyXL-3.1.5/LICENCE.rst` |
 | et_xmlfile and incorporated Python code | 2.0.0 | MIT plus applicable Python Software Foundation terms | `et_xmlfile-2.0.0/` |

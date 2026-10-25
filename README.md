@@ -19,6 +19,8 @@ The official public binary is [`Len-Portable-0.5.0-alpha.1.zip`](https://github.
 
 Known issue in the published `v0.5.0-alpha.1` binary: it exposes an artificial v1/v2 distinction for PHQ-9 and GAD-7. Dan has clarified that every stored daily value is a severity rating. The current source presents one public identity per built-in questionnaire, averages item severity over recorded check-ins, and separately derives 14-day frequency scores. The stored rows and immutable snapshot keys remain intact internally. This correction has not been released.
 
+The isolated October 2026 dependency-security assessment updates the controlled pins to Pillow 13.0.0, pypdf 6.21.2, and setuptools 84.1.0. A harmless workbook confirms that embedded chart-sheet images can reach Pillow during spreadsheet import. Local tests and an assessment Windows build passed; the published alpha is unchanged. See the [security checkpoint](docs/Iterations/security_dependency_20261024_checkpoint.md) for evidence, limitations, and review gates.
+
 ## Current Features
 
 - A definition-driven Today's Check-In with a compact questionnaire roster, one active form at a time, explicit daily-severity guidance, and `Not present / Mild / Moderate / High` choices for both PHQ-9 and GAD-7.

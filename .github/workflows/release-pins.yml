@@ -1,0 +1,96 @@
+name: Windows release pins
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-pins:
+    name: Python 3.12.10 release pins
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up controlled Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.10"
+          architecture: x64
+
+      - name: Prepare exact-byte source and isolated temporary folders
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'len-release-source'
+          $archive = Join-Path $env:RUNNER_TEMP 'len-release-source.tar'
+          $scratch = Join-Path $env:RUNNER_TEMP 'len-release-temp'
+          $cache = Join-Path $env:RUNNER_TEMP 'len-pyinstaller-cache'
+          New-Item -ItemType Directory -Force -Path $stage, $scratch, $cache | Out-Null
+          git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot identify checked-out revision.' }
+          git -c core.autocrlf=false archive --format=tar --output=$archive HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot archive exact source bytes.' }
+          tar -xf $archive -C $stage
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot extract staged source.' }
+          "LEN_RELEASE_STAGE=$stage" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "TEMP=$scratch" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$scratch" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "PYINSTALLER_CONFIG_DIR=$cache" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install exact release requirements
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: -r "$env:LEN_RELEASE_STAGE/packaging/requirements-release.txt"
+          if ($LASTEXITCODE -ne 0) { throw 'Release dependency installation failed.' }
+
+      - name: Verify approved pins and dependency consistency
+        run: |
+          @'
+          import importlib.metadata as metadata
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = Path(os.environ["LEN_RELEASE_STAGE"]) / "packaging/requirements-release.txt"
+          pins = {}
+          for raw in manifest.read_text(encoding="utf-8").splitlines():
+              line = raw.strip()
+              if line and not line.startswith("#"):
+                  name, separator, version = line.partition("==")
+                  if not separator or not name or not version:
+                      raise SystemExit("Every release requirement must be an exact pin.")
+                  pins[name] = version
+          approved = {"Pillow": "13.0.0", "pypdf": "6.21.2", "setuptools": "84.1.0"}
+          if any(pins.get(name) != version for name, version in approved.items()):
+              raise SystemExit("Release manifest differs from approved security pins.")
+          actual = {name: metadata.version(name) for name in pins}
+          if actual != pins:
+              raise SystemExit("Installed packages differ from the release manifest: " + json.dumps(actual))
+          print(json.dumps(actual, indent=2, sort_keys=True))
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Exact pin verification failed.' }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency consistency failed.' }
+
+      - name: Test and compile controlled source
+        run: |
+          Set-Location -LiteralPath $env:LEN_RELEASE_STAGE
+          python -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { throw 'Controlled-environment tests failed.' }
+          python -m compileall -q src tests packaging
+          if ($LASTEXITCODE -ne 0) { throw 'Source compilation failed.' }
+
+      - name: Verify licenses and build local assessment artifact
+        run: |
+          Set-Location -LiteralPath $env:LEN_RELEASE_STAGE
+          python packaging/verify_release_licenses.py
+          if ($LASTEXITCODE -ne 0) { throw 'Release license/runtime preflight failed.' }
+          ./packaging/build_release.ps1 -Version ci-release-pins -Python (Get-Command python).Source
